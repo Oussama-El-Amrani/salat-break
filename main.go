@@ -90,15 +90,79 @@ func getAllPlayers() []string {
 	return players
 }
 
+func getMetadata(player string) map[string]string {
+	metadata := make(map[string]string)
+	cmd := exec.Command("dbus-send", "--print-reply", "--session", "--dest="+player, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties.Get", "string:org.mpris.MediaPlayer2.Player", "string:Metadata")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return metadata
+	}
+
+	// Very simple parsing of the DBus reply
+	lines := strings.Split(string(output), "\n")
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "string \"xesam:title\"") || strings.Contains(line, "string \"xesam:artist\"") {
+			// The next line usually contains the value
+			if i+1 < len(lines) {
+				valLine := strings.TrimSpace(lines[i+1])
+				parts := strings.Split(valLine, "\"")
+				if len(parts) >= 2 {
+					if strings.Contains(line, "title") {
+						metadata["title"] = parts[1]
+					} else {
+						metadata["artist"] = parts[1]
+					}
+				}
+			}
+		}
+	}
+	return metadata
+}
+
+func isMusic(player string, title, artist string) bool {
+	player = strings.ToLower(player)
+	title = strings.ToLower(title)
+	artist = strings.ToLower(artist)
+
+	// 1. Player identity
+	musicPlayers := []string{"spotify", "youtube_music", "rhythmbox", "clementine", "mpd", "audacious", "music"}
+	for _, mp := range musicPlayers {
+		if strings.Contains(player, mp) {
+			return true
+		}
+	}
+
+	// 2. Title keywords
+	musicKeywords := []string{"music", "song", "official video", "official audio", "lyrics", "cover", "remix", "album", "playlist", "feat."}
+	for _, kw := range musicKeywords {
+		if strings.Contains(title, kw) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func pauseAllPlayers() {
 	players := getAllPlayers()
 	if len(players) == 0 {
 		return
 	}
 	for _, player := range players {
-		log.Printf("Pausing %s...", player)
-		cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
-		_ = cmd.Run()
+		meta := getMetadata(player)
+		title := meta["title"]
+		artist := meta["artist"]
+
+		if isMusic(player, title, artist) {
+			log.Printf("Pausing music player %s: %s - %s", player, artist, title)
+			cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
+			_ = cmd.Run()
+			sendNotification("Media Paused", fmt.Sprintf("Paused music: %s", title))
+		} else if title != "" {
+			log.Printf("Non-music media detected on %s: %s. Not pausing.", player, title)
+			sendNotification("Salat Reminder", fmt.Sprintf("Prayer time! (Playing: %s)", title))
+		}
 	}
 }
 
@@ -142,12 +206,12 @@ func checkAndPause(timings map[string]string) {
 			lastSent, sent := notificationsSent[name]
 			today := now.Truncate(24 * time.Hour)
 			if !sent || lastSent.Before(today) {
-				msg := fmt.Sprintf("It is time for %s (%s). Pausing media...", name, tStr)
+				msg := fmt.Sprintf("It is time for %s (%s).", name, tStr)
 				sendNotification("Salat Break", msg)
 				notificationsSent[name] = now
 			}
 
-			log.Printf("Current time %s is within window for %s (%s). Pausing all media players...", now.Format("15:04:05"), name, tStr)
+			log.Printf("Current time %s is within window for %s (%s). Checking players...", now.Format("15:04:05"), name, tStr)
 			pauseAllPlayers()
 		}
 	}
