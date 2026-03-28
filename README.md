@@ -54,6 +54,11 @@ You can manage the background service using standard `systemctl` commands:
   systemctl --user stop salat-break
   ```
 
+### Manual Testing
+You can manually test the Spotify control functionality using the following flags:
+- **Pause**: `./salat-break -test-pause`
+- **Play**: `./salat-break -test-play`
+
 ## How It Works
 1.  **Geolocation**: On startup, the app calls `ip-api.com` to get your current city and country.
 2.  **Prayer Times**: Uses the city/country to fetch today's prayer times from `api.aladhan.com`.

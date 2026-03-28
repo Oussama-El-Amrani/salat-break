@@ -65,6 +65,16 @@ func pauseSpotify() {
 	}
 }
 
+func playSpotify() {
+	cmd := exec.Command("dbus-send", "--print-reply", "--dest=org.mpris.MediaPlayer2.spotify", "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
+	err := cmd.Run()
+	if err != nil {
+		log.Printf("Error playing Spotify: %v", err)
+	} else {
+		log.Println("Sent play command to Spotify.")
+	}
+}
+
 func checkAndPause(timings map[string]string) {
 	now := time.Now()
 	prayers := []string{"Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"}
@@ -96,12 +106,18 @@ func checkAndPause(timings map[string]string) {
 }
 
 func main() {
-	testFlag := flag.Bool("test", false, "Run in test mode (simulates a prayer time now)")
+	testPause := flag.Bool("test-pause", false, "Run test: pause Spotify")
+	testPlay := flag.Bool("test-play", false, "Run test: play Spotify")
 	flag.Parse()
 
-	if *testFlag {
-		log.Println("Test mode: Pausing Spotify now...")
+	if *testPause {
+		log.Println("Test: Pausing Spotify...")
 		pauseSpotify()
+		return
+	}
+	if *testPlay {
+		log.Println("Test: Playing Spotify...")
+		playSpotify()
 		return
 	}
 
