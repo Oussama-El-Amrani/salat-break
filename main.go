@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -54,24 +55,50 @@ func getPrayerTimes(loc *Location) (*PrayerTimes, error) {
 	return &pt, nil
 }
 
-func pauseSpotify() {
-	cmd := exec.Command("dbus-send", "--print-reply", "--dest=org.mpris.MediaPlayer2.spotify", "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
-	err := cmd.Run()
+func getAllPlayers() []string {
+	cmd := exec.Command("dbus-send", "--session", "--dest=org.freedesktop.DBus", "--type=method_call", "--print-reply", "/org/freedesktop/DBus", "org.freedesktop.DBus.ListNames")
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Only log if it's not a "service not found" error (Spotify not running)
-		log.Printf("Error pausing Spotify (maybe it's not running?): %v", err)
-	} else {
-		log.Println("Sent pause command to Spotify.")
+		log.Printf("Error listing DBus names: %v", err)
+		return nil
+	}
+
+	// Simple parsing of dbus-send output
+	var players []string
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "org.mpris.MediaPlayer2.") {
+			// Extract service name from line like: string "org.mpris.MediaPlayer2.spotify"
+			parts := strings.Split(line, "\"")
+			if len(parts) >= 2 {
+				players = append(players, parts[1])
+			}
+		}
+	}
+	return players
+}
+
+func pauseAllPlayers() {
+	players := getAllPlayers()
+	if len(players) == 0 {
+		return
+	}
+	for _, player := range players {
+		log.Printf("Pausing %s...", player)
+		cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
+		_ = cmd.Run()
 	}
 }
 
-func playSpotify() {
-	cmd := exec.Command("dbus-send", "--print-reply", "--dest=org.mpris.MediaPlayer2.spotify", "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
-	err := cmd.Run()
-	if err != nil {
-		log.Printf("Error playing Spotify: %v", err)
-	} else {
-		log.Println("Sent play command to Spotify.")
+func playAllPlayers() {
+	players := getAllPlayers()
+	if len(players) == 0 {
+		return
+	}
+	for _, player := range players {
+		log.Printf("Playing %s...", player)
+		cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
+		_ = cmd.Run()
 	}
 }
 
@@ -99,8 +126,8 @@ func checkAndPause(timings map[string]string) {
 		end := pTime.Add(3 * time.Minute)
 		
 		if now.After(start) && now.Before(end) {
-			log.Printf("Current time %s is within window for %s (%s). Pausing Spotify...", now.Format("15:04:05"), name, tStr)
-			pauseSpotify()
+			log.Printf("Current time %s is within window for %s (%s). Pausing all media players...", now.Format("15:04:05"), name, tStr)
+			pauseAllPlayers()
 		}
 	}
 }
@@ -111,13 +138,13 @@ func main() {
 	flag.Parse()
 
 	if *testPause {
-		log.Println("Test: Pausing Spotify...")
-		pauseSpotify()
+		log.Println("Test: Pausing all media players...")
+		pauseAllPlayers()
 		return
 	}
 	if *testPlay {
-		log.Println("Test: Playing Spotify...")
-		playSpotify()
+		log.Println("Test: Playing all media players...")
+		playAllPlayers()
 		return
 	}
 

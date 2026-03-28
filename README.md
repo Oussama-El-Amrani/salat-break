@@ -4,8 +4,8 @@ A lightweight Go application for Linux that automatically pauses Spotify around 
 
 ## Features
 - **Auto-Location**: Detects your city and timezone using IP-based geolocation.
-- **Prayer Time Sync**: Fetches daily prayer times from the Aladhan API (Standard method).
-- **Spotify Integration**: Pauses Spotify 2 minutes before the Adhan and keeps it paused for 5 minutes total (until 3 minutes after the prayer time).
+- **Prayer Time Sync**: Fetches daily prayer times from the Aladhan API.
+- **Universal Media Control**: Automatically pauses **all active media** (Spotify, YouTube in Chrome/Firefox, etc.) 2 minutes before prayer and resumes 3 minutes after.
 - **Background Service**: Managed by `systemd` to ensure it starts automatically with your user session.
 - **Easy Setup**: Includes a `setup.sh` script to handle dependencies, building, and service activation.
 
