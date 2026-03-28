@@ -16,13 +16,13 @@ if ! command -v dbus-send &> /dev/null; then
         . /etc/os-release
         case "$ID" in
             ubuntu|debian)
-                sudo apt-get update && sudo apt-get install -y dbus
+                sudo apt-get update && sudo apt-get install -y dbus libnotify-bin
                 ;;
             fedora|centos|rhel)
-                sudo dnf install -y dbus
+                sudo dnf install -y dbus libnotify
                 ;;
             arch)
-                sudo pacman -S --noconfirm dbus
+                sudo pacman -S --noconfirm dbus libnotify
                 ;;
             *)
                 echo "Warning: Unknown distribution: $ID. Please install dbus-x11 or dbus manually if needed."

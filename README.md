@@ -6,6 +6,7 @@ A lightweight Go application for Linux that automatically pauses media players a
 - **Auto-Location**: Detects your city and timezone using IP-based geolocation.
 - **Prayer Time Sync**: Fetches daily prayer times from the Aladhan API.
 - **Universal Media Control**: Automatically pauses **all active media** (Spotify, YouTube in Chrome/Firefox, etc.) 2 minutes before prayer and resumes 3 minutes after.
+- **Desktop Notifications**: Alerts you 2 minutes before each prayer so you can prepare.
 - **Background Service**: Managed by `systemd` to ensure it starts automatically with your user session.
 - **Easy Setup**: Includes a `setup.sh` script to handle dependencies, building, and service activation.
 

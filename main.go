@@ -25,6 +25,18 @@ type PrayerTimes struct {
 	} `json:"data"`
 }
 
+var notificationsSent = make(map[string]time.Time)
+
+func sendNotification(title, message string) {
+	log.Printf("Sending notification: %s - %s", title, message)
+	// Use notify-send for desktop notifications
+	cmd := exec.Command("notify-send", "-i", "appointment-soon", title, message)
+	err := cmd.Run()
+	if err != nil {
+		log.Printf("Error sending notification: %v", err)
+	}
+}
+
 func getBrowserLocation() (*Location, error) {
 	resp, err := http.Get("http://ip-api.com/json")
 	if err != nil {
@@ -126,6 +138,15 @@ func checkAndPause(timings map[string]string) {
 		end := pTime.Add(3 * time.Minute)
 		
 		if now.After(start) && now.Before(end) {
+			// Notify if not already sent for this prayer today
+			lastSent, sent := notificationsSent[name]
+			today := now.Truncate(24 * time.Hour)
+			if !sent || lastSent.Before(today) {
+				msg := fmt.Sprintf("It is time for %s (%s). Pausing media...", name, tStr)
+				sendNotification("Salat Break", msg)
+				notificationsSent[name] = now
+			}
+
 			log.Printf("Current time %s is within window for %s (%s). Pausing all media players...", now.Format("15:04:05"), name, tStr)
 			pauseAllPlayers()
 		}
@@ -135,6 +156,7 @@ func checkAndPause(timings map[string]string) {
 func main() {
 	testPause := flag.Bool("test-pause", false, "Run test: pause Spotify")
 	testPlay := flag.Bool("test-play", false, "Run test: play Spotify")
+	testNotify := flag.Bool("test-notify", false, "Run test: send notification")
 	flag.Parse()
 
 	if *testPause {
@@ -145,6 +167,11 @@ func main() {
 	if *testPlay {
 		log.Println("Test: Playing all media players...")
 		playAllPlayers()
+		return
+	}
+	if *testNotify {
+		log.Println("Test: Sending notification...")
+		sendNotification("Salat Break Test", "This is a test notification for the Salat Break app.")
 		return
 	}
 
