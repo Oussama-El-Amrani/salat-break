@@ -25,49 +25,35 @@ if ! command -v dbus-send &> /dev/null; then
                 sudo pacman -S --noconfirm dbus
                 ;;
             *)
-                echo "Unknown distribution: $ID. Please install dbus-x11 or dbus manually."
-                exit 1
+                echo "Warning: Unknown distribution: $ID. Please install dbus-x11 or dbus manually if needed."
                 ;;
         esac
     else
-        echo "Could not detect distribution. Please install dbus manually."
-        exit 1
+        echo "Warning: Could not detect distribution. Please install dbus manually if needed."
     fi
 fi
 
-# 2. Verify Spotify presence
-echo "Checking for Spotify installation..."
-SPOTIFY_FOUND=0
+# 2. Inform about media player control
+echo "Checking for media players (Spotify, Chrome, etc.)..."
+MEDIA_PLAYER_FOUND=0
 
-# Check for apt/deb
-if command -v dpkg &> /dev/null && dpkg -l spotify-client &> /dev/null; then
-    echo "Found Spotify (apt/deb)."
-    SPOTIFY_FOUND=1
+# Check for Spotify (various methods)
+if command -v spotify &> /dev/null || (command -v snap &> /dev/null && snap list spotify &> /dev/null) || (command -v flatpak &> /dev/null && flatpak list --columns=application | grep -q "com.spotify.Client") || (command -v dpkg &> /dev/null && dpkg -l spotify-client &> /dev/null); then
+    echo "Found Spotify."
+    MEDIA_PLAYER_FOUND=1
 fi
 
-# Check for Snap
-if command -v snap &> /dev/null && snap list spotify &> /dev/null; then
-    echo "Found Spotify (snap)."
-    SPOTIFY_FOUND=1
+# Check for Chromium/Chrome
+if command -v chromium &> /dev/null || command -v chromium-browser &> /dev/null || command -v google-chrome &> /dev/null; then
+    echo "Found a browser (Chromium/Chrome) supported for YouTube pause."
+    MEDIA_PLAYER_FOUND=1
 fi
 
-# Check for Flatpak
-if command -v flatpak &> /dev/null && flatpak list --columns=application | grep -q "com.spotify.Client"; then
-    echo "Found Spotify (flatpak)."
-    SPOTIFY_FOUND=1
-fi
-
-# Check for generic binary
-if [ $SPOTIFY_FOUND -eq 0 ] && command -v spotify &> /dev/null; then
-    echo "Found Spotify (generic binary)."
-    SPOTIFY_FOUND=1
-fi
-
-if [ $SPOTIFY_FOUND -eq 0 ]; then
-    echo "Warning: Spotify was not detected on this system."
-    echo "The service will still run, but it may not be able to control Spotify if it's not installed or running."
+if [ $MEDIA_PLAYER_FOUND -eq 0 ]; then
+    echo "Note: No common media players (Spotify/Chrome) were detected."
+    echo "The service will still run and will automatically control any MPRIS-compliant player you install later."
 else
-    echo "Spotify detected successfully."
+    echo "Common media players detected successfully."
 fi
 
 # 3. Create directory if not exists
@@ -102,7 +88,7 @@ echo "Generating systemd service file..."
 UID_VAL=$(id -u)
 cat <<EOF > "$SERVICE_FILE"
 [Unit]
-Description=Salat Spotify Break Service
+Description=Salat Break Service
 After=network.target
 
 [Service]
