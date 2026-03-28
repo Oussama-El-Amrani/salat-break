@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Salat Spotify Break Setup Script
-# Automates building and installing the Salat Spotify Break service.
+# Salat Break Setup Script
+# Automates building and installing the Salat Break service.
 
 APP_DIR="/data/dev/self-hosted/salat-break"
 SERVICE_NAME="salat-break"
 SERVICE_FILE="$HOME/.config/systemd/user/$SERVICE_NAME.service"
 
-echo "=== Setting up Salat Spotify Break ==="
+echo "=== Setting up Salat Break ==="
 
 # 1. Check/Install dependencies
 if ! command -v dbus-send &> /dev/null; then

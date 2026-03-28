@@ -1,6 +1,6 @@
-# Salat Spotify Break
+# Salat Break
 
-A lightweight Go application for Linux that automatically pauses Spotify around prayer times (Salat). It runs in the background as a `systemd` user service and detects your location automatically to fetch accurate prayer times.
+A lightweight Go application for Linux that automatically pauses media players around prayer times (Salat). It runs in the background as a `systemd` user service and detects your location automatically to fetch accurate prayer times.
 
 ## Features
 - **Auto-Location**: Detects your city and timezone using IP-based geolocation.
