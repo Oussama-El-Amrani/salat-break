@@ -6,10 +6,42 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
+
+func getCacheDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "/tmp/salat-break"
+	}
+	dir := filepath.Join(home, ".cache", "salat-break")
+	_ = os.MkdirAll(dir, 0755)
+	return dir
+}
+
+func saveCache(name string, data interface{}) error {
+	path := filepath.Join(getCacheDir(), name)
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return json.NewEncoder(file).Encode(data)
+}
+
+func loadCache(name string, target interface{}) error {
+	path := filepath.Join(getCacheDir(), name)
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return json.NewDecoder(file).Decode(target)
+}
 
 type Location struct {
 	City     string  `json:"city"`
@@ -26,6 +58,16 @@ type PrayerTimes struct {
 }
 
 var notificationsSent = make(map[string]time.Time)
+var lastLoggedCacheKey string
+
+func getCacheModTime(name string) time.Time {
+	path := filepath.Join(getCacheDir(), name)
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
+}
 
 func sendNotification(title, message string) {
 	log.Printf("Sending notification: %s - %s", title, message)
@@ -40,6 +82,11 @@ func sendNotification(title, message string) {
 func getBrowserLocation() (*Location, error) {
 	resp, err := http.Get("http://ip-api.com/json")
 	if err != nil {
+		var cachedLoc Location
+		if loadErr := loadCache("last_location.json", &cachedLoc); loadErr == nil {
+			log.Printf("Offline or API error: Using cached location: %s, %s", cachedLoc.City, cachedLoc.Country)
+			return &cachedLoc, nil
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -48,11 +95,27 @@ func getBrowserLocation() (*Location, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&loc); err != nil {
 		return nil, err
 	}
+	
+	_ = saveCache("last_location.json", loc)
 	return &loc, nil
 }
 
 func getPrayerTimes(loc *Location) (*PrayerTimes, error) {
 	date := time.Now().Format("02-01-2006")
+	cacheKey := fmt.Sprintf("prayer_times_%s_%s_%s.json", strings.ToLower(loc.City), strings.ToLower(loc.Country), date)
+	
+	var cachedPT PrayerTimes
+	if err := loadCache(cacheKey, &cachedPT); err == nil {
+		if lastLoggedCacheKey != cacheKey {
+			modTime := getCacheModTime(cacheKey)
+			log.Printf("Using cached prayer times for %s, %s (Date: %s, Cached at: %s)", 
+				loc.City, loc.Country, date, modTime.Format("2006-01-02 15:04:05"))
+			lastLoggedCacheKey = cacheKey
+		}
+		return &cachedPT, nil
+	}
+
+	log.Printf("Fetching fresh prayer times from API for %s, %s (Date: %s)...", loc.City, loc.Country, date)
 	url := fmt.Sprintf("http://api.aladhan.com/v1/timingsByCity/%s?city=%s&country=%s&method=2", date, loc.City, loc.Country)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -60,10 +123,18 @@ func getPrayerTimes(loc *Location) (*PrayerTimes, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
 	var pt PrayerTimes
 	if err := json.NewDecoder(resp.Body).Decode(&pt); err != nil {
 		return nil, err
 	}
+	
+	_ = saveCache(cacheKey, pt)
+	lastLoggedCacheKey = cacheKey
+	log.Printf("Successfully fetched and cached prayer times for %s.", loc.City)
 	return &pt, nil
 }
 
@@ -239,26 +310,34 @@ func main() {
 		return
 	}
 
-	loc, err := getBrowserLocation()
-	if err != nil {
-		log.Fatalf("Error getting location: %v", err)
-	}
-	log.Printf("Detected location: %s, %s (Timezone: %s)", loc.City, loc.Country, loc.Timezone)
-
-	// Update local timezone if needed? Go usually uses machine timezone.
-	// loc.Timezone can be used to load location if current machine TZ is wrong.
+	var loc *Location
+	var lastLocCheck time.Time
 
 	for {
-		pt, err := getPrayerTimes(loc)
-		if err != nil {
-			log.Printf("Error getting prayer times: %v", err)
-			time.Sleep(1 * time.Minute)
-			continue
+		// Periodically check location (or if first run)
+		if loc == nil || time.Since(lastLocCheck) > 15*time.Minute {
+			newLoc, err := getBrowserLocation()
+			if err != nil {
+				log.Printf("Could not determine location: %v", err)
+			} else if loc == nil || newLoc.City != loc.City || newLoc.Country != loc.Country {
+				loc = newLoc
+				log.Printf("Current location: %s, %s (Timezone: %s)", loc.City, loc.Country, loc.Timezone)
+			}
+			lastLocCheck = time.Now()
+		}
+
+		if loc != nil {
+			pt, err := getPrayerTimes(loc)
+			if err != nil {
+				log.Printf("Error getting prayer times: %v", err)
+			} else {
+				checkAndPause(pt.Data.Timings)
+			}
+		} else {
+			log.Printf("Waiting for valid location and internet to fetch data...")
 		}
 		
-		checkAndPause(pt.Data.Timings)
-		
-		// Check every 30 seconds
+		// Check for prayer window every 30 seconds
 		time.Sleep(30 * time.Second)
 	}
 }
