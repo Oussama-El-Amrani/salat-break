@@ -68,6 +68,7 @@ var notificationsSent = make(map[string]time.Time)
 var lastLoggedCacheKey string
 var inPrayerBreak bool
 var lastHandledPrayer string
+var playersToResume []string
 
 func getCacheModTime(name string) time.Time {
 	path := filepath.Join(getCacheDir(), name)
@@ -238,7 +239,27 @@ func isMusic(player string, title, artist string) bool {
 	return false
 }
 
+func getPlaybackStatus(player string) string {
+	cmd := exec.Command("dbus-send", "--print-reply", "--session", "--dest="+player, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties.Get", "string:org.mpris.MediaPlayer2.Player", "string:PlaybackStatus")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	outStr := string(output)
+	if strings.Contains(outStr, "\"Playing\"") {
+		return "Playing"
+	}
+	if strings.Contains(outStr, "\"Paused\"") {
+		return "Paused"
+	}
+	if strings.Contains(outStr, "\"Stopped\"") {
+		return "Stopped"
+	}
+	return ""
+}
+
 func pauseAllPlayers() {
+	playersToResume = []string{} // Reset the list
 	players := getAllPlayers()
 	if len(players) == 0 {
 		return
@@ -249,10 +270,16 @@ func pauseAllPlayers() {
 		artist := meta["artist"]
 
 		if isMusic(player, title, artist) {
-			log.Printf("Pausing music player %s: %s - %s", player, artist, title)
-			cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
-			_ = cmd.Run()
-			sendNotification("Media Paused", fmt.Sprintf("Paused music: %s", title))
+			status := getPlaybackStatus(player)
+			if status == "Playing" {
+				log.Printf("Pausing music player %s: %s - %s", player, artist, title)
+				cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
+				_ = cmd.Run()
+				sendNotification("Media Paused", fmt.Sprintf("Paused music: %s", title))
+				playersToResume = append(playersToResume, player)
+			} else {
+				log.Printf("Music player %s is not playing (status: %s). Ignored.", player, status)
+			}
 		} else if title != "" {
 			log.Printf("Non-music media detected on %s: %s. Not pausing.", player, title)
 		}
@@ -260,15 +287,15 @@ func pauseAllPlayers() {
 }
 
 func playAllPlayers() {
-	players := getAllPlayers()
-	if len(players) == 0 {
+	if len(playersToResume) == 0 {
 		return
 	}
-	for _, player := range players {
-		log.Printf("Playing %s...", player)
+	for _, player := range playersToResume {
+		log.Printf("Resuming %s...", player)
 		cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
 		_ = cmd.Run()
 	}
+	playersToResume = []string{} // Clear the list after resuming
 }
 
 func checkAndPause(timings map[string]string, nowOverride ...time.Time) {
