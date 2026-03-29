@@ -9,9 +9,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
+
+func sanitizeName(name string) string {
+	// Remove anything that isn't alphanumeric or safe characters to prevent path traversal
+	reg := regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
+	return reg.ReplaceAllString(name, "_")
+}
 
 func getCacheDir() string {
 	home, err := os.UserHomeDir()
@@ -80,19 +87,28 @@ func sendNotification(title, message string) {
 }
 
 func getBrowserLocation() (*Location, error) {
-	resp, err := http.Get("http://ip-api.com/json")
+	var loc Location
+	err := func() error {
+		// Using ipwhois.app which provides free HTTPS and compatible field names
+		resp, err := http.Get("https://ipwhois.app/json/")
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("API status %d", resp.StatusCode)
+		}
+		
+		return json.NewDecoder(resp.Body).Decode(&loc)
+	}()
+
 	if err != nil {
 		var cachedLoc Location
 		if loadErr := loadCache("last_location.json", &cachedLoc); loadErr == nil {
-			log.Printf("Offline or API error: Using cached location: %s, %s", cachedLoc.City, cachedLoc.Country)
+			log.Printf("Using cached location due to error: %v (location: %s, %s)", err, cachedLoc.City, cachedLoc.Country)
 			return &cachedLoc, nil
 		}
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var loc Location
-	if err := json.NewDecoder(resp.Body).Decode(&loc); err != nil {
 		return nil, err
 	}
 	
@@ -102,7 +118,9 @@ func getBrowserLocation() (*Location, error) {
 
 func getPrayerTimes(loc *Location) (*PrayerTimes, error) {
 	date := time.Now().Format("02-01-2006")
-	cacheKey := fmt.Sprintf("prayer_times_%s_%s_%s.json", strings.ToLower(loc.City), strings.ToLower(loc.Country), date)
+	safeCity := sanitizeName(loc.City)
+	safeCountry := sanitizeName(loc.Country)
+	cacheKey := fmt.Sprintf("prayer_times_%s_%s_%s.json", strings.ToLower(safeCity), strings.ToLower(safeCountry), date)
 	
 	var cachedPT PrayerTimes
 	if err := loadCache(cacheKey, &cachedPT); err == nil {
@@ -116,7 +134,7 @@ func getPrayerTimes(loc *Location) (*PrayerTimes, error) {
 	}
 
 	log.Printf("Fetching fresh prayer times from API for %s, %s (Date: %s)...", loc.City, loc.Country, date)
-	url := fmt.Sprintf("http://api.aladhan.com/v1/timingsByCity/%s?city=%s&country=%s&method=2", date, loc.City, loc.Country)
+	url := fmt.Sprintf("https://api.aladhan.com/v1/timingsByCity/%s?city=%s&country=%s&method=2", date, loc.City, loc.Country)
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -151,10 +169,13 @@ func getAllPlayers() []string {
 	lines := strings.Split(string(output), "\n")
 	for _, line := range lines {
 		if strings.Contains(line, "org.mpris.MediaPlayer2.") {
-			// Extract service name from line like: string "org.mpris.MediaPlayer2.spotify"
+			// Extract service name and VALIDATE it
 			parts := strings.Split(line, "\"")
 			if len(parts) >= 2 {
-				players = append(players, parts[1])
+				playerName := parts[1]
+				if strings.HasPrefix(playerName, "org.mpris.MediaPlayer2.") {
+					players = append(players, playerName)
+				}
 			}
 		}
 	}
