@@ -66,6 +66,8 @@ type PrayerTimes struct {
 
 var notificationsSent = make(map[string]time.Time)
 var lastLoggedCacheKey string
+var inPrayerBreak bool
+var lastHandledPrayer string
 
 func getCacheModTime(name string) time.Time {
 	path := filepath.Join(getCacheDir(), name)
@@ -253,7 +255,6 @@ func pauseAllPlayers() {
 			sendNotification("Media Paused", fmt.Sprintf("Paused music: %s", title))
 		} else if title != "" {
 			log.Printf("Non-music media detected on %s: %s. Not pausing.", player, title)
-			sendNotification("Salat Reminder", fmt.Sprintf("Prayer time! (Playing: %s)", title))
 		}
 	}
 }
@@ -270,41 +271,65 @@ func playAllPlayers() {
 	}
 }
 
-func checkAndPause(timings map[string]string) {
+func checkAndPause(timings map[string]string, nowOverride ...time.Time) {
 	now := time.Now()
+	if len(nowOverride) > 0 {
+		now = nowOverride[0]
+	}
 	prayers := []string{"Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"}
+
+	inAnyWindow := false
+	currentPrayerName := ""
+	currentPrayerTime := ""
 
 	for _, name := range prayers {
 		tStr, ok := timings[name]
 		if !ok {
 			continue
 		}
-		
+
 		t, err := time.Parse("15:04", tStr)
 		if err != nil {
 			log.Printf("Error parsing time for %s (%s): %v", name, tStr, err)
 			continue
 		}
-		
+
 		// Set time t to today
 		pTime := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
-		
-		// Stop 2 min before and 3 min after
-		start := pTime.Add(-2 * time.Minute)
-		end := pTime.Add(3 * time.Minute)
-		
-		if now.After(start) && now.Before(end) {
-			// Notify if not already sent for this prayer today
-			lastSent, sent := notificationsSent[name]
-			today := now.Truncate(24 * time.Hour)
-			if !sent || lastSent.Before(today) {
-				msg := fmt.Sprintf("It is time for %s (%s).", name, tStr)
-				sendNotification("Salat Break", msg)
-				notificationsSent[name] = now
-			}
 
-			log.Printf("Current time %s is within window for %s (%s). Checking players...", now.Format("15:04:05"), name, tStr)
+		// Stop 3 min before and 3 min after (as requested)
+		start := pTime.Add(-3 * time.Minute)
+		end := pTime.Add(3 * time.Minute)
+
+		if now.After(start) && now.Before(end) {
+			inAnyWindow = true
+			currentPrayerName = name
+			currentPrayerTime = tStr
+			break
+		}
+	}
+
+	if inAnyWindow {
+		if !inPrayerBreak || lastHandledPrayer != currentPrayerName {
+			// Window started or switched to a new prayer window
+			inPrayerBreak = true
+			lastHandledPrayer = currentPrayerName
+
+			log.Printf("Entering prayer window for %s (%s). Pausing music...", currentPrayerName, currentPrayerTime)
+			msg := fmt.Sprintf("It is time for %s (%s).", currentPrayerName, currentPrayerTime)
+			sendNotification("Salat Break", msg)
+
 			pauseAllPlayers()
+		}
+	} else {
+		if inPrayerBreak {
+			// We were in a prayer break but it has now ended
+			log.Printf("Prayer window for %s ended at %s. Resuming music.", lastHandledPrayer, now.Format("15:04:05"))
+			inPrayerBreak = false
+			lastHandledPrayer = ""
+
+			playAllPlayers()
+			sendNotification("Salat Break Ended", "The prayer window has ended. Media playback resumed.")
 		}
 	}
 }
@@ -313,6 +338,7 @@ func main() {
 	testPause := flag.Bool("test-pause", false, "Run test: pause Spotify")
 	testPlay := flag.Bool("test-play", false, "Run test: play Spotify")
 	testNotify := flag.Bool("test-notify", false, "Run test: send notification")
+	testLogic := flag.Bool("test-logic", false, "Run simulation to test pause/resume logic")
 	flag.Parse()
 
 	if *testPause {
@@ -328,6 +354,29 @@ func main() {
 	if *testNotify {
 		log.Println("Test: Sending notification...")
 		sendNotification("Salat Break Test", "This is a test notification for the Salat Break app.")
+		return
+	}
+
+	if *testLogic {
+		log.Println("Test: Running pause/resume logic simulation...")
+		mockTimings := map[string]string{"Dhuhr": "12:00"}
+		t1200, _ := time.Parse("15:04", "12:00")
+		today := time.Now()
+		baseTime := time.Date(today.Year(), today.Month(), today.Day(), t1200.Hour(), t1200.Minute(), 0, 0, today.Location())
+
+		log.Println("--- Scenario 1: T-4 min (No window) ---")
+		checkAndPause(mockTimings, baseTime.Add(-4*time.Minute))
+		
+		log.Println("--- Scenario 2: T-2 min (Entering window) ---")
+		checkAndPause(mockTimings, baseTime.Add(-2*time.Minute))
+		
+		log.Println("--- Scenario 3: T+1 min (Still in window) ---")
+		checkAndPause(mockTimings, baseTime.Add(1*time.Minute))
+		
+		log.Println("--- Scenario 4: T+4 min (Exiting window) ---")
+		checkAndPause(mockTimings, baseTime.Add(4*time.Minute))
+		
+		log.Println("--- Simulation Complete ---")
 		return
 	}
 
