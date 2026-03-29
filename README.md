@@ -3,9 +3,12 @@
 A lightweight Go application for Linux that automatically pauses media players around prayer times (Salat). It runs in the background as a `systemd` user service and detects your location automatically to fetch accurate prayer times.
 
 ## Features
-- **Auto-Location**: Detects your city and timezone using IP-based geolocation.
-- **Prayer Time Sync**: Fetches daily prayer times from the Aladhan API.
-- **Universal Media Control**: Automatically pauses **all active media** (Spotify, YouTube in Chrome/Firefox, etc.) 2 minutes before prayer and resumes 3 minutes after.
+- **Auto-Location**: Detects your city and timezone using secure IP-based geolocation (`ipwhois.app`).
+- **Prayer Time Sync**: Fetches daily prayer times from the Aladhan API over HTTPS.
+- **Local Caching**: Stores location and prayer times in `~/.cache/salat-break/` to ensure the app works **offline** and to prevent redundant API calls.
+- **Security Hardened**: Encrypted communications (HTTPS), input sanitization, and DBus service validation.
+- **Universal Media Control**: Automatically pauses **all active music** (Spotify, Rhythmbox, etc.) 2 minutes before prayer and resumes after.
+- **Intelligent Media Detection**: Recognizes browser content (YouTube, etc.) and avoids pausing video tutorials while still sending a desktop notification.
 - **Desktop Notifications**: Alerts you 2 minutes before each prayer so you can prepare.
 - **Background Service**: Managed by `systemd` to ensure it starts automatically with your user session.
 - **Easy Setup**: Includes a `setup.sh` script to handle dependencies, building, and service activation.
@@ -61,10 +64,11 @@ You can manually test the Spotify control functionality using the following flag
 - **Play**: `./salat-break -test-play`
 
 ## How It Works
-1.  **Geolocation**: On startup, the app calls `ip-api.com` to get your current city and country.
-2.  **Prayer Times**: Uses the city/country to fetch today's prayer times from `api.aladhan.com`.
-3.  **Monitoring**: Checks every 30 seconds if the current time falls within the pause window (`[PrayerTime - 2m, PrayerTime + 3m]`).
-4.  **DBus Command**: If in the window, it sends a `Pause` signal to Spotify via the MPRIS DBus interface.
+1.  **Geolocation**: On startup, the app calls a secure API (`https://ipwhois.app/json/`) to get your current location. This is cached in `last_location.json`.
+2.  **Prayer Times**: Uses your location to fetch today's prayer times from `https://api.aladhan.com`. These are cached locally (`prayer_times_*.json`) for each day.
+3.  **Offline Support**: If the internet is down, the app automatically falls back to your last known location and previously cached timings.
+4.  **Monitoring**: Checks every 30 seconds if the current time falls within the pause window (`[PrayerTime - 2m, PrayerTime + 3m]`).
+5.  **Media Control**: If in the window, it sends a `Pause` signal to all music players via the MPRIS DBus interface. Browsers/Video players are notified but not paused.
 
 ## License
 MIT
