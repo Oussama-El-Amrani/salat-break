@@ -1,0 +1,70 @@
+package prayer
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/oussama_ib0/salat-break/internal/cache"
+	"github.com/oussama_ib0/salat-break/internal/location"
+)
+
+type PrayerTimes struct {
+	Data struct {
+		Timings map[string]string `json:"timings"`
+	} `json:"data"`
+}
+
+type Service struct {
+	apiURL             string
+	lastLoggedCacheKey string
+}
+
+func NewService() *Service {
+	return &Service{
+		apiURL: "https://api.aladhan.com/v1/timingsByCity/",
+	}
+}
+
+func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
+	date := time.Now().Format("02-01-2006")
+	safeCity := cache.SanitizeName(loc.City)
+	safeCountry := cache.SanitizeName(loc.Country)
+	cacheKey := fmt.Sprintf("prayer_times_%s_%s_%s.json", strings.ToLower(safeCity), strings.ToLower(safeCountry), date)
+	
+	var cachedPT PrayerTimes
+	if err := cache.Load(cacheKey, &cachedPT); err == nil {
+		if s.lastLoggedCacheKey != cacheKey {
+			modTime, _ := cache.GetModTime(cacheKey)
+			log.Printf("Using cached prayer times for %s, %s (Date: %s, Cached at: %s)", 
+				loc.City, loc.Country, date, modTime.Format("2006-01-02 15:04:05"))
+			s.lastLoggedCacheKey = cacheKey
+		}
+		return &cachedPT, nil
+	}
+
+	log.Printf("Fetching fresh prayer times from API for %s, %s (Date: %s)...", loc.City, loc.Country, date)
+	url := fmt.Sprintf("%s%s?city=%s&country=%s&method=2", s.apiURL, date, loc.City, loc.Country)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var pt PrayerTimes
+	if err := json.NewDecoder(resp.Body).Decode(&pt); err != nil {
+		return nil, err
+	}
+	
+	_ = cache.Save(cacheKey, pt)
+	s.lastLoggedCacheKey = cacheKey
+	log.Printf("Successfully fetched and cached prayer times for %s.", loc.City)
+	return &pt, nil
+}
