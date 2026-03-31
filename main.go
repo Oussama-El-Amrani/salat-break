@@ -69,6 +69,9 @@ var lastLoggedCacheKey string
 var inPrayerBreak bool
 var lastHandledPrayer string
 var playersToResume []string
+var notificationTimeout *int
+var notificationClearDelay *int
+var lastNotificationID uint32
 
 func getCacheModTime(name string) time.Time {
 	path := filepath.Join(getCacheDir(), name)
@@ -80,12 +83,55 @@ func getCacheModTime(name string) time.Time {
 }
 
 func sendNotification(title, message string) {
-	log.Printf("Sending notification: %s - %s", title, message)
-	// Use notify-send for desktop notifications
-	cmd := exec.Command("notify-send", "-i", "appointment-soon", title, message)
-	err := cmd.Run()
+	timeout := 10000
+	if notificationTimeout != nil {
+		timeout = *notificationTimeout
+	}
+	
+	clearDelay := 300000 // Default 5 minutes
+	if notificationClearDelay != nil {
+		clearDelay = *notificationClearDelay
+	}
+
+	log.Printf("Sending notification: %s - %s (timeout: %dms, clear: %dms)", title, message, timeout, clearDelay)
+
+	// Use gdbus to send notification and capture ID
+	// method: org.freedesktop.Notifications.Notify(appname, replacesID, icon, summary, body, actions, hints, timeout)
+	cmd := exec.Command("gdbus", "call", "--session", 
+		"--dest=org.freedesktop.Notifications", 
+		"--object-path=/org/freedesktop/Notifications", 
+		"--method=org.freedesktop.Notifications.Notify", 
+		"Salat Break", fmt.Sprintf("uint32 %d", lastNotificationID), "appointment-soon", 
+		title, message, "[]", "{}", fmt.Sprintf("int32 %d", timeout))
+
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("Error sending notification: %v", err)
+		log.Printf("Error sending DBus notification: %v (output: %s)", err, string(output))
+		return
+	}
+
+	// Parse ID: (uint32 364,)
+	re := regexp.MustCompile(`uint32 (\d+)`)
+	matches := re.FindStringSubmatch(string(output))
+	if len(matches) >= 2 {
+		var id uint32
+		fmt.Sscanf(matches[1], "%d", &id)
+		lastNotificationID = id
+		
+		// Persist the ID for future runs/restarts
+		_ = saveCache("last_notification_id.json", id)
+
+		// Start a goroutine to clear from tray after clearDelay
+		go func(notifID uint32, delay int) {
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+			log.Printf("Automatically clearing notification ID %d from tray...", notifID)
+			closeCmd := exec.Command("gdbus", "call", "--session", 
+				"--dest=org.freedesktop.Notifications", 
+				"--object-path=/org/freedesktop/Notifications", 
+				"--method=org.freedesktop.Notifications.CloseNotification", 
+				fmt.Sprintf("uint32 %d", notifID))
+			_ = closeCmd.Run()
+		}(id, clearDelay)
 	}
 }
 
@@ -264,6 +310,8 @@ func pauseAllPlayers() {
 	if len(players) == 0 {
 		return
 	}
+	
+	var pausedTitles []string
 	for _, player := range players {
 		meta := getMetadata(player)
 		title := meta["title"]
@@ -275,7 +323,12 @@ func pauseAllPlayers() {
 				log.Printf("Pausing music player %s: %s - %s", player, artist, title)
 				cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
 				_ = cmd.Run()
-				sendNotification("Media Paused", fmt.Sprintf("Paused music: %s", title))
+				
+				if title != "" {
+					pausedTitles = append(pausedTitles, title)
+				} else {
+					pausedTitles = append(pausedTitles, player)
+				}
 				playersToResume = append(playersToResume, player)
 			} else {
 				log.Printf("Music player %s is not playing (status: %s). Ignored.", player, status)
@@ -283,6 +336,14 @@ func pauseAllPlayers() {
 		} else if title != "" {
 			log.Printf("Non-music media detected on %s: %s. Not pausing.", player, title)
 		}
+	}
+
+	if len(pausedTitles) > 0 {
+		msg := fmt.Sprintf("Paused: %s", strings.Join(pausedTitles, ", "))
+		if len(pausedTitles) > 2 {
+			msg = fmt.Sprintf("Paused %d media players", len(pausedTitles))
+		}
+		sendNotification("Media Paused", msg)
 	}
 }
 
@@ -366,7 +427,12 @@ func main() {
 	testPlay := flag.Bool("test-play", false, "Run test: play Spotify")
 	testNotify := flag.Bool("test-notify", false, "Run test: send notification")
 	testLogic := flag.Bool("test-logic", false, "Run simulation to test pause/resume logic")
+	notificationTimeout = flag.Int("notification-timeout", 10000, "Timeout for notifications in milliseconds (hides popup)")
+	notificationClearDelay = flag.Int("notification-clear-delay", 300000, "Delay in milliseconds before clearing notification from tray (5 minutes)")
 	flag.Parse()
+
+	// Always try to load the last ID on startup to stay in the same slot
+	_ = loadCache("last_notification_id.json", &lastNotificationID)
 
 	if *testPause {
 		log.Println("Test: Pausing all media players...")
@@ -381,6 +447,7 @@ func main() {
 	if *testNotify {
 		log.Println("Test: Sending notification...")
 		sendNotification("Salat Break Test", "This is a test notification for the Salat Break app.")
+		time.Sleep(time.Duration(*notificationClearDelay+1000) * time.Millisecond)
 		return
 	}
 
