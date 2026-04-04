@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/oussama_ib0/salat-break/internal/cache"
+	"github.com/Oussama-El-Amrani/salat-break/internal/cache"
 )
 
 type Location struct {

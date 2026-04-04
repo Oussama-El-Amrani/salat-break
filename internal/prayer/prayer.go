@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oussama_ib0/salat-break/internal/cache"
-	"github.com/oussama_ib0/salat-break/internal/location"
+	"github.com/Oussama-El-Amrani/salat-break/internal/cache"
+	"github.com/Oussama-El-Amrani/salat-break/internal/location"
 )
 
 type PrayerTimes struct {

@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/oussama_ib0/salat-break/internal/media"
-	"github.com/oussama_ib0/salat-break/internal/notification"
+	"github.com/Oussama-El-Amrani/salat-break/internal/media"
+	"github.com/Oussama-El-Amrani/salat-break/internal/notification"
 )
 
 type Service struct {

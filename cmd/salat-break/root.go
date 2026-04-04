@@ -7,11 +7,11 @@ import (
 "github.com/spf13/cobra"
 "github.com/spf13/viper"
 
-"github.com/oussama_ib0/salat-break/internal/checker"
-"github.com/oussama_ib0/salat-break/internal/location"
-"github.com/oussama_ib0/salat-break/internal/media"
-"github.com/oussama_ib0/salat-break/internal/notification"
-"github.com/oussama_ib0/salat-break/internal/prayer"
+"github.com/Oussama-El-Amrani/salat-break/internal/checker"
+"github.com/Oussama-El-Amrani/salat-break/internal/location"
+"github.com/Oussama-El-Amrani/salat-break/internal/media"
+"github.com/Oussama-El-Amrani/salat-break/internal/notification"
+"github.com/Oussama-El-Amrani/salat-break/internal/prayer"
 )
 
 var rootCmd = &cobra.Command{

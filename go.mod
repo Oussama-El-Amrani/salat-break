@@ -1,4 +1,4 @@
-module github.com/oussama_ib0/salat-break
+module github.com/Oussama-El-Amrani/salat-break
 
 go 1.25.5
 
