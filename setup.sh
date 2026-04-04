@@ -57,8 +57,9 @@ fi
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$HOME/.config/systemd/user/"
 
-# 4. Copy binary to local bin
+# 4. Copy binary to local bin and ensure it's executable
 cp "$APP_NAME" "$INSTALL_DIR/"
+chmod +x "$INSTALL_DIR/$APP_NAME"
 
 # 5. Generate/Update systemd service file
 echo "Generating systemd service file..."
