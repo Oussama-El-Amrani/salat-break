@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -60,10 +61,15 @@ func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
 	}
 
 	log.Printf("Fetching fresh prayer times from API for %s, %s (Date: %s, Method: %d)...", loc.City, loc.Country, date, s.Method)
-	url := fmt.Sprintf("%s%s?city=%s&country=%s", s.apiURL, date, loc.City, loc.Country)
+	
+	params := url.Values{}
+	params.Add("city", loc.City)
+	params.Add("country", loc.Country)
 	if s.Method > 0 {
-		url += fmt.Sprintf("&method=%d", s.Method)
+		params.Add("method", fmt.Sprintf("%d", s.Method))
 	}
+
+	url := fmt.Sprintf("%s%s?%s", s.apiURL, date, params.Encode())
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
