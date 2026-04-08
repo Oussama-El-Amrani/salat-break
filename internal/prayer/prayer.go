@@ -61,6 +61,10 @@ func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
 	}
 
 	log.Printf("Fetching fresh prayer times from API for %s, %s (Date: %s, Method: %d)...", loc.City, loc.Country, date, s.Method)
+	if !loc.IsManual {
+		log.Printf("Warning: Location auto-detection depends on your ISP and may not always be accurate.")
+		log.Printf("If incorrect, you can manually set your city using: salat-break --city \"Casablanca\"")
+	}
 	
 	params := url.Values{}
 	params.Add("city", loc.City)

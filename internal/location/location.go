@@ -16,6 +16,7 @@ type Location struct {
 	Lon      float64 `json:"lon"`
 	Timezone string  `json:"timezone"`
 	Method   int     `json:"method"`
+	IsManual bool    `json:"is_manual"`
 }
 
 type Service struct {
@@ -49,9 +50,11 @@ func (s *Service) GetLocation() (*Location, error) {
 	if err := cache.Load("location_override.json", &override); err == nil {
 		if override.City != "" {
 			loc.City = override.City
+			loc.IsManual = true
 		}
 		if override.Country != "" {
 			loc.Country = override.Country
+			loc.IsManual = true
 		}
 	}
 

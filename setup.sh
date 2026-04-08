@@ -95,6 +95,10 @@ if [ -n "$LOC_JSON" ] && [[ "$LOC_JSON" == *'"success":true'* ]]; then
     DETECTED_CITY=$(echo "$LOC_JSON" | grep -o '"city":"[^"]*' | cut -d'"' -f4)
     DETECTED_COUNTRY=$(echo "$LOC_JSON" | grep -o '"country":"[^"]*' | cut -d'"' -f4)
     echo "Auto-detected location: $DETECTED_CITY, $DETECTED_COUNTRY"
+    echo "Warning: Location auto-detection depends on your ISP and may not always be accurate."
+    echo "If incorrect, you can manually set your city using:"
+    echo "  $APP_NAME --city \"Casablanca\""
+    echo ""
     
     # Run the binary with --show-timings to verify and display timings
     "$INSTALL_DIR/$APP_NAME" --show-timings
