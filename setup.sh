@@ -41,12 +41,41 @@ check_dependency() {
 check_dependency "dbus-send" "dbus-x11"
 check_dependency "notify-send" "libnotify-bin"
 
-# 2. Build or Use Existing Binary
+# 2. Version Detection and Update Check
+INSTALLED_VER=""
+if [ -f "$INSTALL_DIR/$APP_NAME" ]; then
+    INSTALLED_VER=$("$INSTALL_DIR/$APP_NAME" --version 2>/dev/null | awk '{print $NF}')
+    if [ -n "$INSTALLED_VER" ]; then
+        echo "Currently installed version: $INSTALLED_VER"
+    fi
+fi
+
+echo "Checking for the latest version on GitHub..."
+REPO="Oussama-El-Amrani/salat-break"
+LATEST_TAG=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -n "$LATEST_TAG" ]; then
+    echo "Latest version available: $LATEST_TAG"
+    if [ "$INSTALLED_VER" == "$LATEST_TAG" ]; then
+        echo "Salat Break is already at the latest version ($INSTALLED_VER)."
+        read -p "Do you want to forced reinstall? [y/N] " response
+        if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+            echo "Setup cancelled. You're already up to date!"
+            exit 0
+        fi
+    fi
+else
+    echo "Warning: Could not fetch latest version from GitHub. Proceeding with standard setup..."
+fi
+
+# 3. Build or Use Existing Binary
 if [ -f "./$APP_NAME" ]; then
     echo "Using existing binary in current directory..."
 elif command -v go &> /dev/null; then
-    echo "Go detected. Building from source..."
-    CGO_ENABLED=0 go build -o "$APP_NAME" ./cmd/salat-break
+    echo "Go detected. Building from source with dynamic version..."
+    # Get current version details for injection
+    VERSION_STR=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+    CGO_ENABLED=0 go build -ldflags "-X main.Version=$VERSION_STR" -o "$APP_NAME" ./cmd/salat-break
 else
     echo "Error: Binary not found and 'go' is not installed."
     echo "Please download the binary or install Go 1.21+."
