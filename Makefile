@@ -3,8 +3,10 @@ BUILD_DIR=cmd/salat-break
 
 all: build
 
+VERSION=$(shell git describe --tags --always --dirty)
+
 build:
-	go build -o $(BINARY_NAME) ./$(BUILD_DIR)
+	go build -ldflags "-X main.Version=$(VERSION)" -o $(BINARY_NAME) ./$(BUILD_DIR)
 
 clean:
 	rm -f $(BINARY_NAME)

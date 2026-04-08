@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -24,7 +26,8 @@ jobs:
 
       - name: Build static binary
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o salat-break-linux-amd64 ./cmd/salat-break
+          VERSION=$(git describe --tags --always --dirty)
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X main.Version=$VERSION" -o salat-break-linux-amd64 ./cmd/salat-break
 
       - name: Upload artifact
         if: github.ref == 'refs/heads/main'

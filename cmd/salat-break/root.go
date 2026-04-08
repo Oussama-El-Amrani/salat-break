@@ -18,10 +18,13 @@ import (
 "github.com/Oussama-El-Amrani/salat-break/internal/prayer"
 )
 
+var Version = "dev"
+
 var rootCmd = &cobra.Command{
-	Use:   "salat-break",
-	Short: "Automatically pause media players during prayer times",
-	Run:   runRoot,
+	Use:     "salat-break",
+	Short:   "Automatically pause media players during prayer times",
+	Version: Version,
+	Run:     runRoot,
 }
 
 var updateCmd = &cobra.Command{
