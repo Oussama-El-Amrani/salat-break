@@ -18,9 +18,21 @@ type PrayerTimes struct {
 	} `json:"data"`
 }
 
+func (pt *PrayerTimes) FormatTimings() string {
+	prayers := []string{"Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"}
+	var results []string
+	for _, name := range prayers {
+		if t, ok := pt.Data.Timings[name]; ok {
+			results = append(results, fmt.Sprintf("%s: %s", name, t))
+		}
+	}
+	return strings.Join(results, " | ")
+}
+
 type Service struct {
 	apiURL             string
 	lastLoggedCacheKey string
+	Method             int
 }
 
 func NewService() *Service {
@@ -33,7 +45,7 @@ func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
 	date := time.Now().Format("02-01-2006")
 	safeCity := cache.SanitizeName(loc.City)
 	safeCountry := cache.SanitizeName(loc.Country)
-	cacheKey := fmt.Sprintf("prayer_times_%s_%s_%s.json", strings.ToLower(safeCity), strings.ToLower(safeCountry), date)
+	cacheKey := fmt.Sprintf("prayer_times_%s_%s_%s_m%d.json", strings.ToLower(safeCity), strings.ToLower(safeCountry), date, s.Method)
 	
 	var cachedPT PrayerTimes
 	if err := cache.Load(cacheKey, &cachedPT); err == nil {
@@ -41,13 +53,17 @@ func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
 			modTime, _ := cache.GetModTime(cacheKey)
 			log.Printf("Using cached prayer times for %s, %s (Date: %s, Cached at: %s)", 
 				loc.City, loc.Country, date, modTime.Format("2006-01-02 15:04:05"))
+			log.Printf("Today's Timings: %s", cachedPT.FormatTimings())
 			s.lastLoggedCacheKey = cacheKey
 		}
 		return &cachedPT, nil
 	}
 
-	log.Printf("Fetching fresh prayer times from API for %s, %s (Date: %s)...", loc.City, loc.Country, date)
-	url := fmt.Sprintf("%s%s?city=%s&country=%s&method=2", s.apiURL, date, loc.City, loc.Country)
+	log.Printf("Fetching fresh prayer times from API for %s, %s (Date: %s, Method: %d)...", loc.City, loc.Country, date, s.Method)
+	url := fmt.Sprintf("%s%s?city=%s&country=%s", s.apiURL, date, loc.City, loc.Country)
+	if s.Method > 0 {
+		url += fmt.Sprintf("&method=%d", s.Method)
+	}
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -66,5 +82,6 @@ func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
 	_ = cache.Save(cacheKey, pt)
 	s.lastLoggedCacheKey = cacheKey
 	log.Printf("Successfully fetched and cached prayer times for %s.", loc.City)
+	log.Printf("Today's Timings: %s", pt.FormatTimings())
 	return &pt, nil
 }

@@ -14,13 +14,14 @@
 - 🕒 **Precision Timing**: Fetches daily prayer times from the Aladhan API with daily local caching.
 - 🎵 **Universal Control**: Pauses **Spotify, Rhythmbox, Clementine, etc.** via the MPRIS DBus interface.
 - 🧠 **Smart Detection**: Recognizes browser content (YouTube, etc.) to avoid pausing tutorials while still sending notifications.
-- 🔔 **Desktop Alerts**: Sends a native Linux notification 2 minutes before the prayer start.
+- 🔔 **Desktop Alerts**: Sends a native Linux notification before the prayer starts.
 - 🕊️ **Zero Overhead**: Written in Go, it uses minimal system resources and runs as a `systemd` user service.
 - 🔌 **Offline First**: Works without an internet connection by falling back to cached location and timings.
+- ⚙️ **Configurable**: Manually override your city, country, or prayer calculation method via CLI.
 
 ---
 
-## 🚀 Quick Install
+## 🚀 Installation
 
 To install Salat Break with a single command:
 
@@ -36,6 +37,8 @@ cd salat-break
 ./setup.sh
 ```
 
+The installer will auto-detect your location and start the background service immediately.
+
 ---
 
 ## 🛠️ Requirements
@@ -45,14 +48,25 @@ cd salat-break
 - `notify-send` (provided by `libnotify-bin`)
 - **Spotify** or any MPRIS-compatible media player.
 
-> [!NOTE]
-> The setup script will attempt to install missing dependencies automatically using your system's package manager.
-
 ---
 
-## ⚙️ Usage & Management
+## ⚙️ Usage & Configuration
 
-Salat Break runs as a `systemd` user service. You can manage it with these commands:
+Salat Break runs as a `systemd` user service, but you can also use the CLI to manage your configuration.
+
+### CLI Flags
+
+| Flag | Description |
+| :--- | :--- |
+| `--show-timings` | Display today's prayer times and exit. |
+| `--city "Name"` | Manually override the auto-detected city. |
+| `--country "Name"`| Manually override the auto-detected country. |
+| `--method ID` | Set a specific [calculation method](https://aladhan.com/calculation-methods) (e.g., 21 for Morocco, 3 for MWL). |
+
+> [!TIP]
+> Changing the city, country, or method via the CLI will automatically save your preference and restart the background service to apply the changes.
+
+### Service Management
 
 | Action | Command |
 | :--- | :--- |
@@ -60,6 +74,7 @@ Salat Break runs as a `systemd` user service. You can manage it with these comma
 | **Restart Service** | `systemctl --user restart salat-break` |
 | **Stop Service** | `systemctl --user stop salat-break` |
 | **View Logs** | `journalctl --user -u salat-break -f` |
+| **Update Tool** | `salat-break update` |
 
 ---
 
@@ -67,8 +82,9 @@ Salat Break runs as a `systemd` user service. You can manage it with these comma
 
 1. **Geolocation**: Uses `ipwhois.app` to resolve your location.
 2. **Caching**: Timings and location are stored in `~/.cache/salat-break/` to prevent redundant API calls.
-3. **Observation Loop**: Every 30 seconds, the app checks if the current time falls within the window (`PrayerTime - 2m` to `PrayerTime + 3m`).
+3. **Observation Loop**: Every 30 seconds, the app checks if the current time falls within the window (**3 minutes before** to **3 minutes after** the prayer).
 4. **Media Interception**: Sends a `Pause` signal to all music players. Non-music media (like videos) triggers a notification only.
+5. **Persistence**: Manual configuration overrides are stored in `~/.cache/salat-break/location_override.json`.
 
 ---
 
