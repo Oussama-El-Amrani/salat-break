@@ -29,7 +29,8 @@ func tryGeoClue2() (*Location, error) {
 	client := conn.Object("org.freedesktop.GeoClue2", clientPath)
 
 	// Set the desktop ID (required by GeoClue2 for authorization)
-	err = client.SetProperty("org.freedesktop.GeoClue2.Client.DesktopId", dbus.MakeVariant("salat-break"))
+	// We use 'firefox' because it's usually whitelisted by default on most Linux distros
+	err = client.SetProperty("org.freedesktop.GeoClue2.Client.DesktopId", dbus.MakeVariant("firefox"))
 	if err != nil {
 		return nil, fmt.Errorf("geoclue2: cannot set desktop id: %w", err)
 	}
