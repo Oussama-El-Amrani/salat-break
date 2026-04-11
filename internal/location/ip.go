@@ -23,7 +23,6 @@ func tryIPGeolocation() (*Location, error) {
 		name string
 		fn   func() (*Location, error)
 	}{
-		{"cloudflare", fetchFromCloudflare},
 		{"ipinfo.io", fetchFromIPInfo},
 		{"ip-api.com", fetchFromIPAPI},
 		{"ipwhois.app", fetchFromIPWhois},
@@ -158,43 +157,6 @@ func fetchFromIPAPI() (*Location, error) {
 	}, nil
 }
 
-func fetchFromCloudflare() (*Location, error) {
-	client := &http.Client{Timeout: 5 * time.Second}
-	// This undocumented Cloudflare endpoint is used for their speed test and is very accurate
-	resp, err := client.Get("https://speed.cloudflare.com/locations")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status %d", resp.StatusCode)
-	}
-
-	// This returns an array of locations, usually the first one is you
-	var data []struct {
-		City      string  `json:"city"`
-		Country   string  `json:"country"`
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		Iata      string  `json:"iata"` // Nearest airport code
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
-	}
-
-	if len(data) == 0 {
-		return nil, fmt.Errorf("no data returned")
-	}
-
-	return &Location{
-		City:      data[0].City,
-		Country:   data[0].Country,
-		Lat:       data[0].Latitude,
-		Lon:       data[0].Longitude,
-		Accuracy:  5000, // Cloudflare is usually very accurate (5km estimate)
-	}, nil
-}
 
 func fetchFromIPWhois() (*Location, error) {
 	client := &http.Client{Timeout: 5 * time.Second}

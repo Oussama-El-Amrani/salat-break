@@ -10,7 +10,7 @@
 
 ## ✨ Features
 
-- 🌍 **Precision Location**: Detects your location using a multi-source strategy including **GeoClue2**, **WiFi Triangulation**, and IP-based consensus for maximum accuracy.
+- 🌍 **Precision Location**: Detects your location using a multi-source strategy including **WiFi Triangulation** and **IP Consensus** for maximum accuracy.
 - 🕒 **Coordinate-Based Timing**: Fetches daily prayer times using exact latitude and longitude for higher precision compared to simple city names.
 - 🎵 **Universal Control**: Pauses **Spotify, Rhythmbox, Clementine, etc.** via the MPRIS DBus interface.
 - 🧠 **Smart Detection**: Recognizes browser content (YouTube, etc.) to avoid pausing tutorials while still sending notifications.
@@ -56,14 +56,26 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 
 ### CLI Flags
 
+| Flag | Short | Description |
+| :--- | :--- | :--- |
+| `--show-timings` | `-t` | Display today's prayer times and exit. |
+| `--show-location`| `-l` | Display your current calculated location (lat/lon, city, source) and exit. |
+| `--verbose` | `-v` | Show detailed internal logs for location resolution and scanning. |
+| `--lat` / `--lon` | | Manually set your exact coordinates for maximum precision. |
+| `--city "Name"` | | Manually override the auto-detected city. |
+| `--country "Name"`| | Manually override the auto-detected country. |
+| `--method ID` | | Set a specific [calculation method](https://aladhan.com/calculation-methods) (e.g., 21 for Morocco). |
+| `--notification-timeout`| | Timeout for notifications in ms (0 to hide the popup). |
+| `--version` | | Display the current installed version. |
+| `update` | | **Subcommand**: Update salat-break to the latest version automatically. |
+
+### Testing & Debugging
+
 | Flag | Description |
 | :--- | :--- |
-| `--show-timings` | Display today's prayer times and exit. |
-| `--show-location`| Display your current calculated location (lat/lon, city, source) and exit. |
-| `--lat` / `--lon` | Manually set your exact coordinates for maximum precision. |
-| `--city "Name"` | Manually override the auto-detected city. |
-| `--country "Name"`| Manually override the auto-detected country. |
-| `--method ID` | Set a specific [calculation method](https://aladhan.com/calculation-methods) (e.g., 21 for Morocco, 3 for MWL). |
+| `--test-pause` | Trigger a manual music pause test. |
+| `--test-play` | Trigger a manual music resume test. |
+| `--test-notify`| Send a test notification. |
 
 > [!TIP]
 > Changing the city, country, or method via the CLI will automatically save your preference and restart the background service to apply the changes.
@@ -82,10 +94,9 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 
 ## 🏗️ Architecture
 
-1. **Geolocation**: Uses a prioritised multi-source strategy:
-    - **GeoClue2**: Native Linux Desktop location service (utilises WiFi + GPS).
-    - **WiFi Triangulation**: Scans nearby APs via `nmcli` and resolves coordinates via Google or BeaconDB APIs.
-    - **IP Consensus**: Queries multiple IP providers simultaneously (ipinfo.io, ip-api.com, ipwhois.app) to find a median consensus.
+1. **Geolocation**: Uses a prioritised multi-source strategy (see [GEOLOCATION_LOGIC.md](./GEOLOCATION_LOGIC.md)):
+    - **WiFi Triangulation**: Scans nearby APs via `nmcli` and resolves coordinates via the BeaconDB API.
+    - **IP Consensus**: Queries multiple IP providers simultaneously (ipinfo.io, ip-api.com, ipwhois.app) to find a median consensus point.
 2. **Reverse Geocoding**: Converts coordinates to local city/country names via OpenStreetMap.
 3. **Observation Loop**: Every 30 seconds, the app checks if the current time falls within the window (**3 minutes before** to **3 minutes after** the prayer).
 4. **Media Interception**: Sends a `Pause` signal to all music players. Non-music media (like videos) triggers a notification only.
@@ -95,7 +106,13 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 
 ## 🤝 Contributing
 
-Contributions are welcome! Whether it's a bug report, a feature request, or a pull request, we appreciate your help in making Salat Break better for everyone.
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+*   **Found a bug?** [Open an issue](https://github.com/Oussama-El-Amrani/salat-break/issues/new?labels=bug) and describe the problem.
+*   **Want a new feature?** [Open an issue](https://github.com/Oussama-El-Amrani/salat-break/issues/new?labels=enhancement) to discuss your idea.
+*   **Ready to code?** Fork the repo and submit a Pull Request!
+
+### Development Workflow
 
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)

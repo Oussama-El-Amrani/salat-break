@@ -116,36 +116,33 @@ func (s *Service) GetLocation() (*Location, error) {
 
 // resolveAutomated tries each automated location source in order of accuracy.
 func (s *Service) resolveAutomated() (*Location, error) {
-	// 1. Try GeoClue2 D-Bus — most accurate (uses WiFi, GPS, cell towers)
-	loc, err := tryGeoClue2()
-	if err == nil && loc.Accuracy > 0 && loc.Accuracy < 1000 {
-		return loc, nil
-	}
-	if err != nil {
-		s.logVerbose("GeoClue2 unavailable: %v", err)
-	}
-
-	// 2. Try WiFi AP scanning + geolocation API
+	// 1. Try WiFi AP scanning + geolocation API
+	// This uses direct hardware scanning and is more reliable than GeoClue on many distros.
 	wifiLoc, wifiErr := tryWiFiGeolocation()
-	// If WiFi is highly accurate (< 5km), use it immediately
-	if wifiErr == nil && wifiLoc.Accuracy > 0 && wifiLoc.Accuracy < 5000 {
-		return wifiLoc, nil
-	}
-	if wifiErr != nil {
+	if wifiErr == nil {
+		// If WiFi is highly accurate (< 5km), use it immediately
+		if wifiLoc.Accuracy > 0 && wifiLoc.Accuracy < 5000 {
+			s.logVerbose("WiFi: High-precision match found (%.0fm)", wifiLoc.Accuracy)
+			return wifiLoc, nil
+		}
+		s.logVerbose("WiFi: Result noted but continuing to IP consensus (accuracy: %.0fm, threshold: 5000m)", wifiLoc.Accuracy)
+	} else {
 		s.logVerbose("WiFi geolocation failed/sparse: %v", wifiErr)
 	}
 
-	// 3. Try IP geolocation (Consensus)
-	// We do this if GeoClue and WiFi failed or returned low accuracy
+	// 2. Try IP geolocation (Consensus)
+	// We do this if WiFi failed or returned low accuracy
 	ipLoc, ipErr := tryIPGeolocation()
 
 	// 4. Decision Logic: Pick the best available result
 	if wifiErr == nil && ipErr == nil {
+		s.logVerbose("Comparing WiFi (%.0fm) vs IP Consensus (%.0fm)", wifiLoc.Accuracy, ipLoc.Accuracy)
 		// If we have both, pick the one with better (lower) accuracy
-		// Note: IP Accuracy is usually estimated at 50km for consensus
 		if wifiLoc.Accuracy > 0 && wifiLoc.Accuracy < ipLoc.Accuracy {
+			s.logVerbose("Decision: Choosing WiFi (better precision)")
 			return wifiLoc, nil
 		}
+		s.logVerbose("Decision: Choosing IP Consensus (better or equal precision)")
 		return ipLoc, nil
 	}
 

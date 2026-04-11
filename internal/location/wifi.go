@@ -101,18 +101,9 @@ func tryWiFiGeolocation() (*Location, error) {
 		aps = aps[:20]
 	}
 
-	// 1. Try Google Geolocation API (Will fail without key, but keep as placeholder)
-	loc, err := geolocateViaGoogle(aps)
-	if err == nil {
-		return loc, nil
-	}
-	// log.Printf("WiFi: Google geolocation failed: %v", err)
-
-	// 2. Try high-precision "Apple-style" community lookup if available
-	// (Note: This is a placeholder for future complex binary implementation)
-
-	// 3. Fallback: try BeaconDB (Community-driven)
-	loc, err = geolocateViaMozillaCompat(aps)
+	// 1. Try BeaconDB (Community-driven free WiFi database)
+	// This is the primary free WiFi source.
+	loc, err := geolocateViaMozillaCompat(aps)
 	if err == nil {
 		// If accuracy is very low (> 10km), we might want to flag it
 		return loc, nil
@@ -121,55 +112,7 @@ func tryWiFiGeolocation() (*Location, error) {
 	return nil, fmt.Errorf("wifi: all geolocation APIs failed: %w", err)
 }
 
-type googleGeoRequest struct {
-	WifiAccessPoints []wifiAP `json:"wifiAccessPoints"`
-}
 
-type googleGeoResponse struct {
-	Location struct {
-		Lat float64 `json:"lat"`
-		Lng float64 `json:"lng"`
-	} `json:"location"`
-	Accuracy float64 `json:"accuracy"`
-}
-
-func geolocateViaGoogle(aps []wifiAP) (*Location, error) {
-	// Use Google Geolocation API
-	// This works without an API key for limited usage
-	reqBody := googleGeoRequest{WifiAccessPoints: aps}
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, err
-	}
-
-	url := "https://www.googleapis.com/geolocation/v1/geolocate?key="
-	// Look for API key in environment or use keyless (very limited)
-	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("google geo: request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		logVerbose("WiFi: Google geolocation failed: status %d", resp.StatusCode)
-		return nil, fmt.Errorf("google geo: status %d", resp.StatusCode)
-	}
-
-	var geoResp googleGeoResponse
-	if err := json.NewDecoder(resp.Body).Decode(&geoResp); err != nil {
-		return nil, err
-	}
-
-	logVerbose("WiFi (Google): Got location (accuracy: %.0fm): lat=%.6f, lon=%.6f",
-		geoResp.Accuracy, geoResp.Location.Lat, geoResp.Location.Lng)
-
-	return &Location{
-		Lat:      geoResp.Location.Lat,
-		Lon:      geoResp.Location.Lng,
-		Accuracy: geoResp.Accuracy,
-		Source:   "wifi-google",
-	}, nil
-}
 
 func geolocateViaMozillaCompat(aps []wifiAP) (*Location, error) {
 	// BeaconDB — community-driven replacement for Mozilla Location Service
@@ -207,7 +150,13 @@ func geolocateViaMozillaCompat(aps []wifiAP) (*Location, error) {
 		return nil, fmt.Errorf("beacondb: status %d", resp.StatusCode)
 	}
 
-	var geoResp googleGeoResponse // BeaconDB uses same response format
+	var geoResp struct {
+		Location struct {
+			Lat float64 `json:"lat"`
+			Lng float64 `json:"lng"`
+		} `json:"location"`
+		Accuracy float64 `json:"accuracy"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&geoResp); err != nil {
 		return nil, err
 	}
