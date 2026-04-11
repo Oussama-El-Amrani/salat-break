@@ -94,6 +94,8 @@ func tryWiFiGeolocation() (*Location, error) {
 		return nil, err
 	}
 
+	logVerbose("WiFi: Scanned %d access points for triangulation", len(aps))
+
 	// Limit to top 20 strongest signals for better accuracy
 	if len(aps) > 20 {
 		aps = aps[:20]
@@ -149,6 +151,7 @@ func geolocateViaGoogle(aps []wifiAP) (*Location, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		logVerbose("WiFi: Google geolocation failed: status %d", resp.StatusCode)
 		return nil, fmt.Errorf("google geo: status %d", resp.StatusCode)
 	}
 
@@ -156,6 +159,9 @@ func geolocateViaGoogle(aps []wifiAP) (*Location, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&geoResp); err != nil {
 		return nil, err
 	}
+
+	logVerbose("WiFi (Google): Got location (accuracy: %.0fm): lat=%.6f, lon=%.6f",
+		geoResp.Accuracy, geoResp.Location.Lat, geoResp.Location.Lng)
 
 	return &Location{
 		Lat:      geoResp.Location.Lat,
@@ -197,6 +203,7 @@ func geolocateViaMozillaCompat(aps []wifiAP) (*Location, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		logVerbose("WiFi: BeaconDB failed: status %d", resp.StatusCode)
 		return nil, fmt.Errorf("beacondb: status %d", resp.StatusCode)
 	}
 
@@ -204,6 +211,9 @@ func geolocateViaMozillaCompat(aps []wifiAP) (*Location, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&geoResp); err != nil {
 		return nil, err
 	}
+
+	logVerbose("WiFi (BeaconDB): Got location (accuracy: %.0fm): lat=%.6f, lon=%.6f",
+		geoResp.Accuracy, geoResp.Location.Lat, geoResp.Location.Lng)
 
 	return &Location{
 		Lat:      geoResp.Location.Lat,

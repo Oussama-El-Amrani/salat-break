@@ -10,6 +10,9 @@ import (
 	"github.com/Oussama-El-Amrani/salat-break/internal/cache"
 )
 
+// GlobalVerbose controls package-level logging for all location modules.
+var GlobalVerbose bool
+
 // Location represents a geographic position with metadata.
 type Location struct {
 	City     string  `json:"city"`
@@ -41,6 +44,9 @@ func NewService() *Service {
 //  4. IP geolocation (consensus from multiple providers)
 //  5. Cached location (last known good)
 func (s *Service) GetLocation() (*Location, error) {
+	// Sync local verbose flag to global package level
+	GlobalVerbose = s.Verbose
+	
 	// Load manual override if exists
 	var override Location
 	hasOverride := false
@@ -153,10 +159,14 @@ func (s *Service) resolveAutomated() (*Location, error) {
 	return nil, fmt.Errorf("all automated sources failed: wifi=%v, ip=%v", wifiErr, ipErr)
 }
 
-func (s *Service) logVerbose(format string, v ...interface{}) {
-	if s.Verbose {
+func logVerbose(format string, v ...interface{}) {
+	if GlobalVerbose {
 		log.Printf(format, v...)
 	}
+}
+
+func (s *Service) logVerbose(format string, v ...interface{}) {
+	logVerbose(format, v...)
 }
 
 // applyOverride merges manual overrides onto an auto-detected location.

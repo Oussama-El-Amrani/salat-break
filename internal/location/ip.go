@@ -37,6 +37,11 @@ func tryIPGeolocation() (*Location, error) {
 		go func(name string, fn func() (*Location, error)) {
 			defer wg.Done()
 			loc, err := fn()
+			if err != nil {
+				logVerbose("IP geolocation [%s]: failed: %v", name, err)
+			} else {
+				logVerbose("IP geolocation [%s]: lat=%.4f, lon=%.4f, city=%s", name, loc.Lat, loc.Lon, loc.City)
+			}
 			results <- result{loc, err}
 		}(p.name, p.fn)
 	}
@@ -75,6 +80,9 @@ func tryIPGeolocation() (*Location, error) {
 	consensus.City = closest.City
 	consensus.Country = closest.Country
 	consensus.Timezone = closest.Timezone
+
+	logVerbose("IP geolocation consensus (%d providers): lat=%.4f, lon=%.4f, city=%s",
+		len(locs), consensus.Lat, consensus.Lon, consensus.City)
 
 	return consensus, nil
 }

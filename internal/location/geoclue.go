@@ -85,7 +85,7 @@ func tryGeoClue2() (*Location, error) {
 	}
 	accVariant, err := locObj.GetProperty("org.freedesktop.GeoClue2.Location.Accuracy")
 	if err != nil {
-		// Silent
+		logVerbose("geoclue2: could not read accuracy: %v", err)
 	}
 
 	lat, ok := latVariant.Value().(float64)
@@ -106,6 +106,8 @@ func tryGeoClue2() (*Location, error) {
 
 	// Stop the client
 	_ = client.Call("org.freedesktop.GeoClue2.Client.Stop", 0).Err
+
+	logVerbose("GeoClue2: Got location (accuracy: %.0fm): lat=%.6f, lon=%.6f", accuracy, lat, lon)
 
 	return &Location{
 		Lat:      lat,
