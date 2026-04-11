@@ -10,8 +10,8 @@
 
 ## ✨ Features
 
-- 🌍 **Auto-Location**: Detects your city and timezone automatically using secure IP-based geolocation.
-- 🕒 **Precision Timing**: Fetches daily prayer times from the Aladhan API with daily local caching.
+- 🌍 **Precision Location**: Detects your location using a multi-source strategy including **GeoClue2**, **WiFi Triangulation**, and IP-based consensus for maximum accuracy.
+- 🕒 **Coordinate-Based Timing**: Fetches daily prayer times using exact latitude and longitude for higher precision compared to simple city names.
 - 🎵 **Universal Control**: Pauses **Spotify, Rhythmbox, Clementine, etc.** via the MPRIS DBus interface.
 - 🧠 **Smart Detection**: Recognizes browser content (YouTube, etc.) to avoid pausing tutorials while still sending notifications.
 - 🔔 **Desktop Alerts**: Sends a native Linux notification before the prayer starts.
@@ -59,6 +59,8 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 | Flag | Description |
 | :--- | :--- |
 | `--show-timings` | Display today's prayer times and exit. |
+| `--show-location`| Display your current calculated location (lat/lon, city, source) and exit. |
+| `--lat` / `--lon` | Manually set your exact coordinates for maximum precision. |
 | `--city "Name"` | Manually override the auto-detected city. |
 | `--country "Name"`| Manually override the auto-detected country. |
 | `--method ID` | Set a specific [calculation method](https://aladhan.com/calculation-methods) (e.g., 21 for Morocco, 3 for MWL). |
@@ -80,8 +82,11 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 
 ## 🏗️ Architecture
 
-1. **Geolocation**: Uses `ipwhois.app` to resolve your location.
-2. **Caching**: Timings and location are stored in `~/.cache/salat-break/` to prevent redundant API calls.
+1. **Geolocation**: Uses a prioritised multi-source strategy:
+    - **GeoClue2**: Native Linux Desktop location service (utilises WiFi + GPS).
+    - **WiFi Triangulation**: Scans nearby APs via `nmcli` and resolves coordinates via Google or BeaconDB APIs.
+    - **IP Consensus**: Queries multiple IP providers simultaneously (ipinfo.io, ip-api.com, ipwhois.app) to find a median consensus.
+2. **Reverse Geocoding**: Converts coordinates to local city/country names via OpenStreetMap.
 3. **Observation Loop**: Every 30 seconds, the app checks if the current time falls within the window (**3 minutes before** to **3 minutes after** the prayer).
 4. **Media Interception**: Sends a `Pause` signal to all music players. Non-music media (like videos) triggers a notification only.
 5. **Persistence**: Manual configuration overrides are stored in `~/.cache/salat-break/location_override.json`.
