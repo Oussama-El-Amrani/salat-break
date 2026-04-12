@@ -1,21 +1,22 @@
 package main
 
 import (
-"io"
-"log"
-"os"
-"os/exec"
-"time"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"os/exec"
+	"time"
 
-"github.com/spf13/cobra"
-"github.com/spf13/viper"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
-"github.com/Oussama-El-Amrani/salat-break/internal/cache"
-"github.com/Oussama-El-Amrani/salat-break/internal/checker"
-"github.com/Oussama-El-Amrani/salat-break/internal/location"
-"github.com/Oussama-El-Amrani/salat-break/internal/media"
-"github.com/Oussama-El-Amrani/salat-break/internal/notification"
-"github.com/Oussama-El-Amrani/salat-break/internal/prayer"
+	"github.com/Oussama-El-Amrani/salat-break/internal/cache"
+	"github.com/Oussama-El-Amrani/salat-break/internal/checker"
+	"github.com/Oussama-El-Amrani/salat-break/internal/location"
+	"github.com/Oussama-El-Amrani/salat-break/internal/media"
+	"github.com/Oussama-El-Amrani/salat-break/internal/notification"
+	"github.com/Oussama-El-Amrani/salat-break/internal/prayer"
 )
 
 var Version = "dev"
@@ -42,13 +43,17 @@ func Execute() {
 func init() {
 	rootCmd.Flags().Int("notification-timeout", 10000, "Timeout for notifications in milliseconds (hides the popup)")
 	rootCmd.Flags().Int("notification-clear-delay", 300000, "Delay in milliseconds before clearing notification from the system tray (default 5m)")
+	rootCmd.Flags().Bool("verbose", false, "Show detailed internal logs for location resolution and hardware scanning")
 	rootCmd.Flags().Bool("test-pause", false, "Run test: pause all media players")
 	rootCmd.Flags().Bool("test-play", false, "Run test: resume all media players")
 	rootCmd.Flags().Bool("test-notify", false, "Run test: send a test notification")
 	rootCmd.Flags().Bool("test-logic", false, "Run simulation to test prayer window logic")
 	rootCmd.Flags().Bool("show-timings", false, "Display today's prayer times for your current location and exit")
+	rootCmd.Flags().Bool("show-location", false, "Display your current calculated location and exit")
 	rootCmd.Flags().String("city", "", "Manually override the auto-detected city (sets a persistent preference)")
 	rootCmd.Flags().String("country", "", "Manually override the auto-detected country (sets a persistent preference)")
+	rootCmd.Flags().Float64("lat", 0, "Manually set latitude for precise location (e.g., 33.5731 for Casablanca)")
+	rootCmd.Flags().Float64("lon", 0, "Manually set longitude for precise location (e.g., -7.5898 for Casablanca)")
 	rootCmd.Flags().Int("method", 0, "Set the prayer calculation method ID (e.g., 21 for Morocco, 3 for MWL, 0 for auto-detection)")
 
 	_ = viper.BindPFlags(rootCmd.Flags())
@@ -66,6 +71,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	notifier := notification.NewService(timeout, clearDelay)
 	mediaCtrl := media.NewController(notifier)
 	locationSvc := location.NewService()
+	locationSvc.Verbose = viper.GetBool("verbose")
 	prayerSvc := prayer.NewService()
 	checkSvc := checker.NewService(mediaCtrl, notifier)
 
@@ -90,6 +96,20 @@ func runRoot(cmd *cobra.Command, args []string) {
 		runSimulation(checkSvc)
 		return
 	}
+	if viper.GetBool("show-location") {
+		loc, err := locationSvc.GetLocation()
+		if err != nil {
+			log.Fatalf("Error getting location: %v", err)
+		}
+		fmt.Printf("Current Calculated Location:\n")
+		fmt.Printf("  City:      %s\n", loc.City)
+		fmt.Printf("  Country:   %s\n", loc.Country)
+		fmt.Printf("  Latitude:  %.6f\n", loc.Lat)
+		fmt.Printf("  Longitude: %.6f\n", loc.Lon)
+		fmt.Printf("  Timezone:  %s\n", loc.Timezone)
+		fmt.Printf("  Source:    %s\n", loc.Source)
+		return
+	}
 	if viper.GetBool("show-timings") {
 		loc, err := locationSvc.GetLocation()
 		if err != nil {
@@ -107,8 +127,10 @@ func runRoot(cmd *cobra.Command, args []string) {
 	// Handle Location Overrides
 	city := viper.GetString("city")
 	country := viper.GetString("country")
+	lat := viper.GetFloat64("lat")
+	lon := viper.GetFloat64("lon")
 	method := viper.GetInt("method")
-	if city != "" || country != "" || method > 0 {
+	if city != "" || country != "" || lat != 0 || lon != 0 || method > 0 {
 		var override location.Location
 		_ = cache.Load("location_override.json", &override)
 		if city != "" {
@@ -117,17 +139,25 @@ func runRoot(cmd *cobra.Command, args []string) {
 		if country != "" {
 			override.Country = country
 		}
+		if lat != 0 {
+			override.Lat = lat
+		}
+		if lon != 0 {
+			override.Lon = lon
+		}
 		if method > 0 {
 			override.Method = method
 		}
 		if err := cache.Save("location_override.json", override); err != nil {
 			log.Fatalf("Error saving location override: %v", err)
 		}
-		log.Printf("Location configuration saved: City=%s, Country=%s, Method=%d", override.City, override.Country, override.Method)
+		log.Printf("Location configuration saved: City=%s, Country=%s, Lat=%.4f, Lon=%.4f, Method=%d",
+			override.City, override.Country, override.Lat, override.Lon, override.Method)
 
 		// Fetch and log timings for confirmation
 		loc, err := locationSvc.GetLocation()
 		if err == nil {
+			prayerSvc.Method = loc.Method
 			_, _ = prayerSvc.GetPrayerTimes(loc)
 		}
 
