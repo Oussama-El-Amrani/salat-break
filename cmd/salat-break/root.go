@@ -161,9 +161,8 @@ func runRoot(cmd *cobra.Command, args []string) {
 			_, _ = prayerSvc.GetPrayerTimes(loc)
 		}
 
-		// Restart systemd service to apply changes
-		log.Println("Restarting salat-break service to apply changes...")
-		_ = exec.Command("systemctl", "--user", "restart", "salat-break.service").Run()
+		// Restart service to apply changes
+		restartService()
 		return
 	}
 

@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev/)
 
-**Salat Break** is a lightweight, intelligent background service for Linux that automatically pauses your music players (Spotify, Rhythmbox, etc.) during prayer times. It stays out of your way until it's time for prayer, ensuring you never miss a Salat while listening to media.
+**Salat Break** is a lightweight, intelligent background service for Linux and macOS that automatically pauses your music players (Spotify, Music.app, Rhythmbox, etc.) during prayer times. It stays out of your way until it's time for prayer, ensuring you never miss a Salat while listening to media.
 
 ---
 
@@ -12,10 +12,10 @@
 
 - 🌍 **Precision Location**: Detects your location using a multi-source strategy including **WiFi Triangulation** and **IP Consensus** for maximum accuracy.
 - 🕒 **Coordinate-Based Timing**: Fetches daily prayer times using exact latitude and longitude for higher precision compared to simple city names.
-- 🎵 **Universal Control**: Pauses **Spotify, Rhythmbox, Clementine, etc.** via the MPRIS DBus interface.
+- 🎵 **Universal Control**: Pauses **Spotify, Music.app, Rhythmbox, Clementine, etc.** via MPRIS (Linux) or AppleScript (macOS).
 - 🧠 **Smart Detection**: Recognizes browser content (YouTube, etc.) to avoid pausing tutorials while still sending notifications.
-- 🔔 **Desktop Alerts**: Sends a native Linux notification before the prayer starts.
-- 🕊️ **Zero Overhead**: Written in Go, it uses minimal system resources and runs as a `systemd` user service.
+- 🔔 **Desktop Alerts**: Sends native Linux/macOS notifications before the prayer starts.
+- 🕊️ **Zero Overhead**: Written in Go, it uses minimal system resources and runs as a background service (`systemd` or `launchd`).
 - 🔌 **Offline First**: Works without an internet connection by falling back to cached location and timings.
 - ⚙️ **Configurable**: Manually override your city, country, or prayer calculation method via CLI.
 
@@ -43,10 +43,10 @@ The installer will auto-detect your location and start the background service im
 
 ## 🛠️ Requirements
 
-- **Linux** (Tested on Ubuntu, Debian, Fedora, Arch)
-- `dbus-send` (provided by `dbus-x11` or `dbus`)
-- `notify-send` (provided by `libnotify-bin`)
-- **Spotify** or any MPRIS-compatible media player.
+- **Linux** (Tested on Ubuntu, Debian, Fedora, Arch) or **macOS** (Tested on Sonoma, Ventura)
+- **Linux Dependencies**: `dbus-send` (provided by `dbus-x11`), `notify-send` (provided by `libnotify-bin`)
+- **macOS Dependencies**: None (uses built-in AppleScript and `airport`)
+- **Spotify**, **Music.app**, or any MPRIS-compatible media player.
 
 ---
 

@@ -5,23 +5,54 @@
 
 set -e
 
+# Colors for better UI
+BOLD="$(tput bold)"
+GREEN="$(tput setaf 2)"
+YELLOW="$(tput setaf 3)"
+CYAN="$(tput setaf 6)"
+RED="$(tput setaf 1)"
+RESET="$(tput sgr0)"
+
 APP_NAME="salat-break"
 INSTALL_DIR="$HOME/.local/bin"
 SERVICE_NAME="salat-break"
 SERVICE_FILE="$HOME/.config/systemd/user/$SERVICE_NAME.service"
 
-echo "=== Setting up $APP_NAME ==="
+echo "${BOLD}${CYAN}=== Salat Break Setup ===${RESET}"
+
+# Navigation to script directory if not already there
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# macOS Delegation
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "macOS detected. Switching to macOS setup..."
+    chmod +x ./setup_macos.sh
+    ./setup_macos.sh "$@"
+    exit $?
+fi
+
+# 0. Uninstall Option
+if [[ "$1" == "--uninstall" ]]; then
+    echo "${YELLOW}Uninstalling $APP_NAME...${RESET}"
+    systemctl --user stop "$SERVICE_NAME" &> /dev/null || true
+    systemctl --user disable "$SERVICE_NAME" &> /dev/null || true
+    rm -f "$SERVICE_FILE"
+    rm -f "$INSTALL_DIR/$APP_NAME"
+    echo "${GREEN}Salat Break has been removed.${RESET}"
+    exit 0
+fi
 
 # 1. Dependency check
 check_dependency() {
     local cmd=$1
     local pkg=$2
     if ! command -v "$cmd" &> /dev/null; then
-        echo "$cmd not found. Attempting to install $pkg..."
+        echo "${YELLOW}Dependency '$cmd' not found. Trying to install $pkg...${RESET}"
         if [ -f /etc/os-release ]; then
             . /etc/os-release
             case "$ID" in
-                ubuntu|debian|pop)
+                ubuntu|debian|pop|raspbian)
                     sudo apt-get update && sudo apt-get install -y "$pkg"
                     ;;
                 fedora|centos|rhel)
@@ -31,22 +62,25 @@ check_dependency() {
                     sudo pacman -S --noconfirm "$pkg"
                     ;;
                 *)
-                    echo "Warning: Unknown distribution. Please install $pkg manually."
+                    echo "${RED}Warning: Unknown distribution. Please install $pkg manually.${RESET}"
                     ;;
             esac
+        else
+            echo "${RED}Warning: Could not detect OS. Please install $pkg manually.${RESET}"
         fi
     fi
 }
 
 check_dependency "dbus-send" "dbus-x11"
 check_dependency "notify-send" "libnotify-bin"
+check_dependency "curl" "curl"
 
 # 2. Version Detection and Update Check
 INSTALLED_VER=""
 if [ -f "$INSTALL_DIR/$APP_NAME" ]; then
     INSTALLED_VER=$("$INSTALL_DIR/$APP_NAME" --version 2>/dev/null | awk '{print $NF}')
     if [ -n "$INSTALLED_VER" ]; then
-        echo "Currently installed version: $INSTALLED_VER"
+        echo "Currently installed version: ${BOLD}$INSTALLED_VER${RESET}"
     fi
 fi
 
@@ -55,30 +89,29 @@ REPO="Oussama-El-Amrani/salat-break"
 LATEST_TAG=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
 if [ -n "$LATEST_TAG" ]; then
-    echo "Latest version available: $LATEST_TAG"
+    echo "Latest version available: ${BOLD}$LATEST_TAG${RESET}"
     if [ "$INSTALLED_VER" == "$LATEST_TAG" ]; then
-        echo "Salat Break is already at the latest version ($INSTALLED_VER)."
-        read -p "Do you want to forced reinstall? [y/N] " response
+        echo "${GREEN}Salat Break is already at the latest version ($INSTALLED_VER).${RESET}"
+        read -p "Do you want to re-install? [y/N] " response
         if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
             echo "Setup cancelled. You're already up to date!"
             exit 0
         fi
     fi
 else
-    echo "Warning: Could not fetch latest version from GitHub. Proceeding with standard setup..."
+    echo "${YELLOW}Warning: Could not fetch latest version from GitHub. Proceeding...${RESET}"
 fi
 
 # 3. Build or Use Existing Binary
 if [ -f "./$APP_NAME" ]; then
-    echo "Using existing binary in current directory..."
+    echo "Using existing binary found in current directory..."
 elif command -v go &> /dev/null; then
-    echo "Go detected. Building from source with dynamic version..."
-    # Get current version details for injection
-    VERSION_STR=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+    echo "Go detected. ${BOLD}Building from source...${RESET}"
+    VERSION_STR=$(git describe --tags --always --dirty 2>/dev/null || echo "$LATEST_TAG")
     CGO_ENABLED=0 go build -ldflags "-X main.Version=$VERSION_STR" -o "$APP_NAME" ./cmd/salat-break
 else
-    echo "Error: Binary not found and 'go' is not installed."
-    echo "Please download the binary or install Go 1.21+."
+    echo "${RED}Error: Binary not found and 'go' is not installed.${RESET}"
+    echo "Please download the binary manually or install Go 1.21+."
     exit 1
 fi
 
@@ -86,17 +119,12 @@ fi
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$HOME/.config/systemd/user/"
 
-# 4. Copy binary to local bin and ensure it's executable
-echo "Installing binary..."
-# Stop service if it's already running
+# 4. Copy binary to local bin
+echo "Installing binary to $INSTALL_DIR..."
 systemctl --user stop "$SERVICE_NAME" &> /dev/null || true
 pkill -f "$APP_NAME" &> /dev/null || true
 sleep 1
-# Use install command which handles unlinking busy binaries better
-mkdir -p "$INSTALL_DIR"
 install -m 755 "$APP_NAME" "$INSTALL_DIR/$APP_NAME"
-# Cleanup any backup if it exists
-rm -f "$INSTALL_DIR/$APP_NAME.bak" &> /dev/null || true
 
 # 5. Generate/Update systemd service file
 echo "Generating systemd service file..."
@@ -106,10 +134,12 @@ cat <<SVC > "$SERVICE_FILE"
 [Unit]
 Description=Salat Break Service
 After=network.target
+PartOf=graphical-session.target
 
 [Service]
 ExecStart=$INSTALL_DIR/$APP_NAME
 Restart=always
+RestartSec=10
 Environment=DISPLAY=:0
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$UID_VAL/bus
 
@@ -118,21 +148,22 @@ WantedBy=default.target
 SVC
 
 # 6. Location Configuration
-echo "=== Location Configuration ==="
-LOC_JSON=$(curl -s https://ipwhois.app/json/ || echo "")
-if [ -n "$LOC_JSON" ] && [[ "$LOC_JSON" == *'"success":true'* ]]; then
-    DETECTED_CITY=$(echo "$LOC_JSON" | grep -o '"city":"[^"]*' | cut -d'"' -f4)
-    DETECTED_COUNTRY=$(echo "$LOC_JSON" | grep -o '"country":"[^"]*' | cut -d'"' -f4)
-    echo "Auto-detected location: $DETECTED_CITY, $DETECTED_COUNTRY"
-    echo "Warning: Location auto-detection depends on your ISP and may not always be accurate."
-    echo "If incorrect, you can manually set your city using:"
+echo "${BOLD}${CYAN}=== Location Configuration ===${RESET}"
+echo "Verifying location detection..."
+
+# Use the binary's own detection logic (Internal WiFi + IP Consensus)
+# This is much more accurate than the previous curl-based method.
+if "$INSTALL_DIR/$APP_NAME" --show-location; then
+    echo ""
+    echo "${GREEN}Location successfully detected!${RESET}"
+    echo "Salat Break will use your coordinates to calculate precise prayer times."
+    echo ""
+    echo "If this is incorrect, you can manually override it later with:"
     echo "  $APP_NAME --city \"Casablanca\""
     echo ""
-    
-    # Run the binary with --show-timings to verify and display timings
-    "$INSTALL_DIR/$APP_NAME" --show-timings
 else
-    echo "Could not auto-detect location. You can configure it manually using:"
+    echo "${YELLOW}Warning: Automatic location detection failed.${RESET}"
+    echo "You might need to set your location manually:"
     echo "  $APP_NAME --city \"YourCity\""
 fi
 
@@ -142,7 +173,18 @@ systemctl --user daemon-reload
 systemctl --user enable "$SERVICE_NAME"
 systemctl --user restart "$SERVICE_NAME"
 
-echo "=== Setup Complete! ==="
-echo "Salat Break is now running in the background."
-echo "Check status: systemctl --user status $SERVICE_NAME"
-echo "View logs: journalctl --user -u $SERVICE_NAME -f"
+# 8. Final Check
+echo ""
+if command -v "$APP_NAME" &> /dev/null; then
+    echo "${BOLD}${GREEN}✔ Salat Break is installed and running!${RESET}"
+else
+    echo "${BOLD}${YELLOW}⚠ Installation completed, but '$INSTALL_DIR' might not be in your PATH.${RESET}"
+    echo "Add this to your .bashrc or .zshrc:"
+    echo "  export PATH=\$PATH:\$HOME/.local/bin"
+fi
+
+echo ""
+echo "Check status: ${CYAN}systemctl --user status $SERVICE_NAME${RESET}"
+echo "View logs:   ${CYAN}journalctl --user -u $SERVICE_NAME -f${RESET}"
+echo ""
+echo "Enjoy your peaceful prayer breaks!"
