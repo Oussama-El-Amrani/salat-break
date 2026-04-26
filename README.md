@@ -43,7 +43,7 @@ The installer will auto-detect your location and start the background service im
 
 ## 🛠️ Requirements
 
-- **Linux** (Tested on Ubuntu, Debian, Fedora, Arch) or **macOS** (Tested on Sonoma, Ventura)
+- **Linux** (Tested on Ubuntu, Debian, Fedora, Arch) or **macOS** (⚠️ Not fully tested - if you encounter any issues, please open an issue)
 - **Linux Dependencies**: `dbus-send` (provided by `dbus-x11`), `notify-send` (provided by `libnotify-bin`)
 - **macOS Dependencies**: None (uses built-in AppleScript and `airport`)
 - **Spotify**, **Music.app**, or any MPRIS-compatible media player.
