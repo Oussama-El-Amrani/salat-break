@@ -17,7 +17,7 @@
 - 🧠 **Smart Detection**: Recognizes browser content (YouTube, etc.) to avoid pausing tutorials while still sending notifications.
 - 🔔 **Desktop Alerts**: Sends native Linux/macOS notifications before the prayer starts.
 - 🕊️ **Zero Overhead**: Written in Go, it uses minimal system resources and runs as a background service (`systemd` or `launchd`).
-- 🔌 **Offline First**: Works without an internet connection by falling back to cached location and timings.
+- 🔌 **Offline First**: Monthly pre-fetching ensures you have the entire month's prayer times cached locally, staying fully functional even during extended internet outages.
 - ⚙️ **Configurable**: Manually override your city, country, or prayer calculation method via CLI.
 
 ---
@@ -100,7 +100,8 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
     - **WiFi Triangulation**: Scans nearby APs via `nmcli` and resolves coordinates via the BeaconDB API.
     - **IP Consensus**: Queries multiple IP providers simultaneously (ipinfo.io, ip-api.com, ipwhois.app) to find a median consensus point.
 2. **Reverse Geocoding**: Converts coordinates to local city/country names via OpenStreetMap.
-3. **Observation Loop**: 
+3. **Monthly Pre-fetching**: On the first run or at the start of a month, the app fetches the entire month's calendar at once. Each day is cached individually, providing weeks of offline resilience.
+4. **Observation Loop**: 
     - **Prayer Check**: Every 30 seconds, the app checks if it's time for prayer.
     - **Environment Monitoring**: Monitors your WiFi SSID or Public IP. If your environment changes, it automatically refreshes your location and updates prayer times.
 4. **Media Interception**: Sends a `Pause` signal to all music players. Non-music media (like videos) triggers a notification only.
