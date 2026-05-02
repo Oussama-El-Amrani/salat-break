@@ -55,6 +55,7 @@ func init() {
 	rootCmd.Flags().Float64("lat", 0, "Manually set latitude for precise location (e.g., 33.5731 for Casablanca)")
 	rootCmd.Flags().Float64("lon", 0, "Manually set longitude for precise location (e.g., -7.5898 for Casablanca)")
 	rootCmd.Flags().Int("method", 0, "Set the prayer calculation method ID (e.g., 21 for Morocco, 3 for MWL, 0 for auto-detection)")
+	rootCmd.Flags().Bool("reset-location", false, "Clear all manual location overrides and return to automatic detection")
 
 	_ = viper.BindPFlags(rootCmd.Flags())
 	viper.SetEnvPrefix("SALAT_BREAK")
@@ -166,15 +167,36 @@ func runRoot(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	if viper.GetBool("reset-location") {
+		if err := cache.Delete("location_override.json"); err != nil {
+			log.Printf("No manual location override to clear.")
+		} else {
+			log.Printf("Manual location overrides cleared. Returning to automatic detection.")
+		}
+		// Restart service to apply changes
+		restartService()
+		return
+	}
+
 	// Main Loop
 	log.Println("Salat Break service started. Monitoring prayer times...")
+	watcher := location.NewWatcher(locationSvc)
+	var lastCity string
+
 	for {
-		loc, err := locationSvc.GetLocation()
+		loc, err := watcher.GetLocation()
 		if err != nil {
 			log.Printf("Error getting location: %v. Retrying in 1 minute...", err)
 			time.Sleep(1 * time.Minute)
 			continue
 		}
+
+		// Detect significant location change (city changed)
+		if lastCity != "" && lastCity != loc.City {
+			log.Printf("Location change detected: %s -> %s. Updating prayer times.", lastCity, loc.City)
+			notifier.SendNotification("Location Updated", fmt.Sprintf("Salat Break is now using prayer times for %s, %s.", loc.City, loc.Country))
+		}
+		lastCity = loc.City
 
 		prayerSvc.Method = loc.Method
 		timings, err := prayerSvc.GetPrayerTimes(loc)

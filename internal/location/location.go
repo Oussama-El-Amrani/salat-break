@@ -3,6 +3,7 @@ package location
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -31,6 +32,10 @@ type Location struct {
 type Service struct {
 	lastLoggedSource string
 	Verbose          bool
+
+	lastFingerprint string
+	lastLocation    *Location
+	lastRefresh     time.Time
 }
 
 func NewService() *Service {
@@ -270,6 +275,30 @@ func (s *Service) enrichWithReverseGeocode(loc *Location) {
 	if data.Address.CountryCode != "" {
 		loc.CountryCode = strings.ToUpper(data.Address.CountryCode)
 	}
+}
+
+// CurrentFingerprint returns a unique identifier for the current network environment.
+// It tries to get the current WiFi SSID, falling back to a public IP check if WiFi is unavailable.
+func (s *Service) CurrentFingerprint() string {
+	// 1. Try to get current SSID (Linux/macOS)
+	ssid := getCurrentSSID()
+	if ssid != "" {
+		return "ssid:" + ssid
+	}
+
+	// 2. Fallback: Get Public IP
+	// We use a very fast/simple IP check here
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get("https://api.ipify.org")
+	if err == nil {
+		defer resp.Body.Close()
+		ip, _ := io.ReadAll(resp.Body)
+		if len(ip) > 0 {
+			return "ip:" + string(ip)
+		}
+	}
+
+	return "unknown"
 }
 
 // logSourceOnce logs the location source only when it changes.

@@ -76,3 +76,22 @@ func scanWiFiAPs() ([]wifiAP, error) {
 
 	return aps, nil
 }
+
+// getCurrentSSID returns the SSID of the currently active WiFi connection.
+func getCurrentSSID() string {
+	// nmcli -t -f ACTIVE,SSID device wifi | grep '^yes' | cut -d':' -f2
+	cmd := exec.Command("nmcli", "-t", "-f", "ACTIVE,SSID", "device", "wifi")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "yes:") {
+			return strings.TrimPrefix(line, "yes:")
+		}
+	}
+
+	return ""
+}

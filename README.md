@@ -10,7 +10,8 @@
 
 ## ✨ Features
 
-- 🌍 **Precision Location**: Detects your location using a multi-source strategy including **WiFi Triangulation** and **IP Consensus** for maximum accuracy.
+- 🌍 **Smart Location Detection**: Automatically detects when you move (e.g., traveling) by monitoring your WiFi environment and updates prayer times immediately.
+- 🕒 **Precision Geolocation**: Uses WiFi Triangulation and IP Consensus to find your exact coordinates for maximum accuracy.
 - 🕒 **Coordinate-Based Timing**: Fetches daily prayer times using exact latitude and longitude for higher precision compared to simple city names.
 - 🎵 **Universal Control**: Pauses **Spotify, Music.app, Rhythmbox, Clementine, etc.** via MPRIS (Linux) or AppleScript (macOS).
 - 🧠 **Smart Detection**: Recognizes browser content (YouTube, etc.) to avoid pausing tutorials while still sending notifications.
@@ -62,6 +63,7 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 | `--show-location`| `-l` | Display your current calculated location (lat/lon, city, source) and exit. |
 | `--verbose` | `-v` | Show detailed internal logs for location resolution and scanning. |
 | `--lat` / `--lon` | | Manually set your exact coordinates for maximum precision. |
+| `--reset-location`| | Clear all manual location overrides and return to automatic detection. |
 | `--city "Name"` | | Manually override the auto-detected city. |
 | `--country "Name"`| | Manually override the auto-detected country. |
 | `--method ID` | | Set a specific [calculation method](https://aladhan.com/calculation-methods) (e.g., 21 for Morocco). |
@@ -98,7 +100,9 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
     - **WiFi Triangulation**: Scans nearby APs via `nmcli` and resolves coordinates via the BeaconDB API.
     - **IP Consensus**: Queries multiple IP providers simultaneously (ipinfo.io, ip-api.com, ipwhois.app) to find a median consensus point.
 2. **Reverse Geocoding**: Converts coordinates to local city/country names via OpenStreetMap.
-3. **Observation Loop**: Every 30 seconds, the app checks if the current time falls within the window (**3 minutes before** to **3 minutes after** the prayer).
+3. **Observation Loop**: 
+    - **Prayer Check**: Every 30 seconds, the app checks if it's time for prayer.
+    - **Environment Monitoring**: Monitors your WiFi SSID or Public IP. If your environment changes, it automatically refreshes your location and updates prayer times.
 4. **Media Interception**: Sends a `Pause` signal to all music players. Non-music media (like videos) triggers a notification only.
 5. **Persistence**: Manual configuration overrides are stored in `~/.cache/salat-break/location_override.json`.
 

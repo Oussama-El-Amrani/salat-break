@@ -91,3 +91,25 @@ func scanWiFiAPs() ([]wifiAP, error) {
 
 	return aps, nil
 }
+
+// getCurrentSSID returns the SSID of the currently active WiFi connection.
+func getCurrentSSID() string {
+	airportPath := "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
+	cmd := exec.Command(airportPath, "-I")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, " SSID:") {
+			parts := strings.Split(line, ":")
+			if len(parts) >= 2 {
+				return strings.TrimSpace(parts[1])
+			}
+		}
+	}
+
+	return ""
+}

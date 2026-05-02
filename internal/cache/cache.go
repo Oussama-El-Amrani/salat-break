@@ -67,3 +67,11 @@ func GetModTime(name string) (time.Time, error) {
 	
 	return info.ModTime(), nil
 }
+
+func Delete(name string) error {
+	dir, err := getCacheDir()
+	if err != nil {
+		return err
+	}
+	return os.Remove(filepath.Join(dir, name))
+}
