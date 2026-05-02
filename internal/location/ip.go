@@ -79,9 +79,10 @@ func tryIPGeolocation() (*Location, error) {
 	consensus.City = closest.City
 	consensus.Country = closest.Country
 	consensus.Timezone = closest.Timezone
+	consensus.CountryCode = closest.CountryCode
 
-	logVerbose("IP geolocation consensus (%d providers): lat=%.4f, lon=%.4f, city=%s",
-		len(locs), consensus.Lat, consensus.Lon, consensus.City)
+	logVerbose("IP geolocation consensus (%d providers): lat=%.4f, lon=%.4f, city=%s, country_code=%s",
+		len(locs), consensus.Lat, consensus.Lon, consensus.City, consensus.CountryCode)
 
 	return consensus, nil
 }
@@ -116,11 +117,11 @@ func fetchFromIPInfo() (*Location, error) {
 
 	return &Location{
 		City:     data.City,
-		Country:  data.Country,
-		Lat:      lat,
-		Lon:      lon,
-		Accuracy: 50000, // 50km estimate
-		Timezone: data.Timezone,
+		CountryCode: data.Country, // ipinfo returns 2-letter code in 'country'
+		Lat:         lat,
+		Lon:         lon,
+		Accuracy:    50000, // 50km estimate
+		Timezone:    data.Timezone,
 	}, nil
 }
 
@@ -137,11 +138,12 @@ func fetchFromIPAPI() (*Location, error) {
 	}
 
 	var data struct {
-		City     string  `json:"city"`
-		Country  string  `json:"country"`
-		Lat      float64 `json:"lat"`
-		Lon      float64 `json:"lon"`
-		Timezone string  `json:"timezone"`
+		City        string  `json:"city"`
+		Country     string  `json:"country"`
+		CountryCode string  `json:"countryCode"`
+		Lat         float64 `json:"lat"`
+		Lon         float64 `json:"lon"`
+		Timezone    string  `json:"timezone"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, err
@@ -149,7 +151,8 @@ func fetchFromIPAPI() (*Location, error) {
 
 	return &Location{
 		City:     data.City,
-		Country:  data.Country,
+		Country:     data.Country,
+		CountryCode: data.CountryCode,
 		Lat:      data.Lat,
 		Lon:      data.Lon,
 		Accuracy: 50000,
@@ -171,11 +174,12 @@ func fetchFromIPWhois() (*Location, error) {
 	}
 
 	var data struct {
-		City     string  `json:"city"`
-		Country  string  `json:"country"`
-		Lat      float64 `json:"latitude"`
-		Lon      float64 `json:"longitude"`
-		Timezone string  `json:"timezone"`
+		City        string  `json:"city"`
+		Country     string  `json:"country"`
+		CountryCode string  `json:"country_code"`
+		Lat         float64 `json:"latitude"`
+		Lon         float64 `json:"longitude"`
+		Timezone    string  `json:"timezone"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, err
@@ -183,7 +187,8 @@ func fetchFromIPWhois() (*Location, error) {
 
 	return &Location{
 		City:     data.City,
-		Country:  data.Country,
+		Country:     data.Country,
+		CountryCode: data.CountryCode,
 		Lat:      data.Lat,
 		Lon:      data.Lon,
 		Accuracy: 50000,

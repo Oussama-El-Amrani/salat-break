@@ -40,13 +40,22 @@ func NewService() *Service {
 }
 
 // GetPrayerTimes fetches prayer times for the given location.
-// It uses lat/lon coordinates when available (more accurate) and falls back
-// to city/country name when coordinates are not available.
 func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
 	date := time.Now().Format("02-01-2006")
 
+	// If method is not explicitly set, try to auto-detect based on country
+	if s.Method == 0 && loc.Method == 0 {
+		s.Method = GetDefaultMethod(loc.CountryCode)
+		if s.Method != 0 {
+			log.Printf("Auto-selected prayer calculation method: %d (for country: %s)", s.Method, loc.CountryCode)
+		}
+	} else if loc.Method != 0 {
+		s.Method = loc.Method
+	}
+
 	// Build a unique cache key based on the actual parameters used
 	cacheKey := s.buildCacheKey(loc, date)
+
 
 	var cachedPT PrayerTimes
 	if err := cache.Load(cacheKey, &cachedPT); err == nil {
@@ -140,4 +149,42 @@ func (s *Service) buildCacheKey(loc *location.Location, date string) string {
 	safeCountry := cache.SanitizeName(loc.Country)
 	return fmt.Sprintf("prayer_times_%s_%s_%s_m%d.json",
 		strings.ToLower(safeCity), strings.ToLower(safeCountry), date, s.Method)
+}
+
+// GetDefaultMethod returns the recommended Aladhan prayer calculation method for a given country code.
+func GetDefaultMethod(countryCode string) int {
+	switch strings.ToUpper(countryCode) {
+	case "MA":
+		return 21 // Morocco (Ministry of Habous and Islamic Affairs)
+	case "SA":
+		return 4 // Saudi Arabia (Umm al-Qura)
+	case "PK", "IN", "BD":
+		return 1 // University of Islamic Sciences, Karachi
+	case "EG":
+		return 5 // Egyptian General Authority of Survey
+	case "QA":
+		return 10 // Qatar
+	case "KW":
+		return 9 // Kuwait
+	case "AE":
+		return 16 // Dubai
+	case "MY":
+		return 17 // Malaysia (JAKIM)
+	case "TN":
+		return 18 // Tunisia
+	case "DZ":
+		return 19 // Algeria
+	case "ID":
+		return 20 // Indonesia
+	case "TR":
+		return 13 // Turkey
+	case "FR":
+		return 12 // France (UOIF)
+	case "RU":
+		return 14 // Russia
+	case "SG":
+		return 11 // Singapore (MUIS)
+	default:
+		return 0 // Default (usually MWL)
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Oussama-El-Amrani/salat-break/internal/cache"
@@ -15,15 +16,16 @@ var GlobalVerbose bool
 
 // Location represents a geographic position with metadata.
 type Location struct {
-	City     string  `json:"city"`
-	Country  string  `json:"country"`
-	Lat      float64 `json:"lat"`
-	Lon      float64 `json:"lon"`
-	Accuracy float64 `json:"accuracy"` // Accuracy in meters
-	Timezone string  `json:"timezone"`
-	Method   int     `json:"method"`
-	IsManual bool    `json:"is_manual"`
-	Source   string  `json:"source"` // Which source provided this location
+	City        string  `json:"city"`
+	Country     string  `json:"country"`
+	CountryCode string  `json:"country_code"`
+	Lat         float64 `json:"lat"`
+	Lon         float64 `json:"lon"`
+	Accuracy    float64 `json:"accuracy"` // Accuracy in meters
+	Timezone    string  `json:"timezone"`
+	Method      int     `json:"method"`
+	IsManual    bool    `json:"is_manual"`
+	Source      string  `json:"source"` // Which source provided this location
 }
 
 type Service struct {
@@ -102,8 +104,8 @@ func (s *Service) GetLocation() (*Location, error) {
 		applyOverride(loc, &override)
 	}
 
-	// Reverse geocode if we have coords but no city (common for GeoClue2/WiFi)
-	if loc.City == "" || loc.Country == "" {
+	// Reverse geocode if we have coords but no city, or if the city came from IP consensus (often imprecise)
+	if loc.City == "" || loc.Country == "" || strings.HasPrefix(loc.Source, "ip-") {
 		s.enrichWithReverseGeocode(loc)
 	}
 
@@ -248,13 +250,25 @@ func (s *Service) enrichWithReverseGeocode(loc *Location) {
 		city = data.Address.County
 	}
 
-	if city != "" && loc.City == "" {
-		loc.City = city
-		log.Printf("Reverse geocode: resolved city to %s", city)
+	if city != "" {
+		// If reverse geocoding gives us a city, and our current source is IP-based
+		// (which is less accurate), we should trust reverse geocoding more.
+		if loc.City == "" || (!loc.IsManual && strings.HasPrefix(loc.Source, "ip-")) {
+			if loc.City != city {
+				log.Printf("Reverse geocode: updating city from %q to %q (based on precise coordinates)", loc.City, city)
+				loc.City = city
+			}
+		}
 	}
-	if data.Address.Country != "" && loc.Country == "" {
-		loc.Country = data.Address.Country
-		log.Printf("Reverse geocode: resolved country to %s", data.Address.Country)
+
+	if data.Address.Country != "" {
+		if loc.Country == "" || (!loc.IsManual && strings.HasPrefix(loc.Source, "ip-")) {
+			loc.Country = data.Address.Country
+		}
+	}
+
+	if data.Address.CountryCode != "" {
+		loc.CountryCode = strings.ToUpper(data.Address.CountryCode)
 	}
 }
 
