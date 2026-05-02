@@ -21,12 +21,14 @@ type Service struct {
 	notifier          Notifier
 	inPrayerBreak     bool
 	lastHandledPrayer string
+	AutoPlay          bool
 }
 
 func NewService(mediaCtrl MediaManager, notifier Notifier) *Service {
 	return &Service{
 		mediaCtrl: mediaCtrl,
 		notifier:  notifier,
+		AutoPlay:  true, // Default to true
 	}
 }
 
@@ -90,12 +92,18 @@ func (s *Service) CheckAndPause(timings map[string]string, nowOverride ...time.T
 	} else {
 		if s.inPrayerBreak {
 			// We were in a prayer break but it has now ended
-			log.Printf("Prayer window for %s ended at %s. Resuming music.", s.lastHandledPrayer, now.Format("15:04:05"))
+			log.Printf("Prayer window for %s ended at %s.", s.lastHandledPrayer, now.Format("15:04:05"))
 			s.inPrayerBreak = false
 			s.lastHandledPrayer = ""
 
-			s.mediaCtrl.PlayAllPlayers()
-			s.notifier.SendNotification("Salat Break Ended", "The prayer window has ended. Media playback resumed.")
+			if s.AutoPlay {
+				log.Println("Resuming music...")
+				s.mediaCtrl.PlayAllPlayers()
+				s.notifier.SendNotification("Salat Break Ended", "The prayer window has ended. Media playback resumed.")
+			} else {
+				log.Println("Auto-play is disabled. Music will not be resumed automatically.")
+				s.notifier.SendNotification("Salat Break Ended", "The prayer window has ended.")
+			}
 		}
 	}
 }

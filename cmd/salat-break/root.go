@@ -56,6 +56,7 @@ func init() {
 	rootCmd.Flags().Float64("lon", 0, "Manually set longitude for precise location (e.g., -7.5898 for Casablanca)")
 	rootCmd.Flags().Int("method", 0, "Set the prayer calculation method ID (e.g., 21 for Morocco, 3 for MWL, 0 for auto-detection)")
 	rootCmd.Flags().Bool("reset-location", false, "Clear all manual location overrides and return to automatic detection")
+	rootCmd.Flags().Bool("auto-play", true, "Automatically resume media playback after the prayer break ends")
 
 	_ = viper.BindPFlags(rootCmd.Flags())
 	viper.SetEnvPrefix("SALAT_BREAK")
@@ -78,6 +79,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 		prayerSvc.BaseURL = val
 	}
 	checkSvc := checker.NewService(mediaCtrl, notifier)
+	checkSvc.AutoPlay = viper.GetBool("auto-play")
 
 	// Handle Tests
 	if viper.GetBool("test-pause") {

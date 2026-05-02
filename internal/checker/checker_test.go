@@ -108,4 +108,26 @@ func TestCheckAndPause(t *testing.T) {
 		mockNotify.AssertExpectations(t)
 		mockMedia.AssertExpectations(t)
 	})
+
+	t.Run("Exiting prayer window with auto-play disabled", func(t *testing.T) {
+		mockMedia := new(MockMediaManager)
+		mockNotify := new(MockNotifier)
+		s := NewService(mockMedia, mockNotify)
+		s.AutoPlay = false
+
+		// Set initial state as if we are in a break
+		s.inPrayerBreak = true
+		s.lastHandledPrayer = "Dhuhr"
+
+		// 12:04:00 is outside the window
+		now := time.Date(2026, 3, 31, 12, 4, 0, 0, time.Local)
+
+		mockNotify.On("SendNotification", "Salat Break Ended", "The prayer window has ended.").Once()
+		// PlayAllPlayers should NOT be called
+
+		s.CheckAndPause(timings, now)
+
+		mockNotify.AssertExpectations(t)
+		mockMedia.AssertNotCalled(t, "PlayAllPlayers")
+	})
 }

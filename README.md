@@ -67,6 +67,7 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 | `--city "Name"` | | Manually override the auto-detected city. |
 | `--country "Name"`| | Manually override the auto-detected country. |
 | `--method ID` | | Set a specific [calculation method](https://aladhan.com/calculation-methods) (e.g., 21 for Morocco). |
+| `--auto-play` | | Automatically resume media playback after the prayer break ends (default `true`). |
 | `--notification-timeout`| | Timeout for notifications in ms (0 to hide the popup). |
 | `--version` | | Display the current installed version. |
 | `update` | | **Subcommand**: Update salat-break to the latest version automatically. |
@@ -105,6 +106,7 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
     - **Prayer Check**: Every 30 seconds, the app checks if it's time for prayer.
     - **Environment Monitoring**: Monitors your WiFi SSID or Public IP. If your environment changes, it automatically refreshes your location and updates prayer times.
 4. **Media Interception**: Sends a `Pause` signal to all music players. Non-music media (like videos) triggers a notification only.
+    - **Auto-Resume**: By default, the service will automatically resume any media it paused once the prayer window (3 minutes after the prayer time) ends. You can disable this with `--auto-play=false`.
 5. **Persistence**: Manual configuration overrides are stored in `~/.cache/salat-break/location_override.json`.
 
 ---
