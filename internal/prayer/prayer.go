@@ -72,20 +72,27 @@ func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
 	}
 
 	// Determine which API endpoint to use
+	// Instead of fetching just today, we fetch the entire month for better offline support
+	if err := s.fetchAndCacheMonth(loc, time.Now()); err == nil {
+		// After successful monthly fetch, try loading today's cache again
+		if err := cache.Load(cacheKey, &cachedPT); err == nil {
+			log.Printf("Successfully bulk-cached and loaded timings for today.")
+			log.Printf("Today's Timings: %s", cachedPT.FormatTimings())
+			s.lastLoggedCacheKey = cacheKey
+			return &cachedPT, nil
+		}
+	} else {
+		log.Printf("Monthly pre-fetch failed: %v. Falling back to single-day fetch...", err)
+	}
+
+	// Fallback to single-day fetch if monthly fetch failed
 	var apiURL string
 	if loc.Lat != 0 || loc.Lon != 0 {
-		// Use coordinate-based API (more accurate)
 		apiURL = s.buildCoordinateURL(loc, date)
-		log.Printf("Fetching prayer times by coordinates: lat=%.4f, lon=%.4f (source: %s)",
-			loc.Lat, loc.Lon, loc.Source)
+		log.Printf("Fetching prayer times for today by coordinates: lat=%.4f, lon=%.4f", loc.Lat, loc.Lon)
 	} else {
-		// Fall back to city-based API
 		apiURL = s.buildCityURL(loc, date)
-		log.Printf("Fetching prayer times by city: %s, %s (source: %s)",
-			loc.City, loc.Country, loc.Source)
-		if !loc.IsManual {
-			log.Printf("Tip: For better accuracy, set your coordinates: salat-break --lat 33.5731 --lon -7.5898")
-		}
+		log.Printf("Fetching prayer times for today by city: %s, %s", loc.City, loc.Country)
 	}
 
 	resp, err := http.Get(apiURL)
@@ -105,9 +112,71 @@ func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
 
 	_ = cache.Save(cacheKey, pt)
 	s.lastLoggedCacheKey = cacheKey
-	log.Printf("Successfully fetched and cached prayer times.")
 	log.Printf("Today's Timings: %s", pt.FormatTimings())
 	return &pt, nil
+}
+
+// fetchAndCacheMonth fetches the entire month's prayer times and saves each day to the cache.
+func (s *Service) fetchAndCacheMonth(loc *location.Location, t time.Time) error {
+	year, month, _ := t.Date()
+	
+	params := url.Values{}
+	if loc.Lat != 0 || loc.Lon != 0 {
+		params.Add("latitude", fmt.Sprintf("%.6f", loc.Lat))
+		params.Add("longitude", fmt.Sprintf("%.6f", loc.Lon))
+	} else {
+		params.Add("city", loc.City)
+		params.Add("country", loc.Country)
+	}
+	
+	if s.Method > 0 {
+		params.Add("method", fmt.Sprintf("%d", s.Method))
+	}
+	params.Add("month", fmt.Sprintf("%02d", int(month)))
+	params.Add("year", fmt.Sprintf("%d", year))
+
+	apiURL := fmt.Sprintf("https://api.aladhan.com/v1/calendar?%s", params.Encode())
+	log.Printf("Pre-fetching prayer times for the entire month (%02d/%d) to enable offline support...", int(month), year)
+
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	var calendarResp struct {
+		Data []struct {
+			Timings map[string]string `json:"timings"`
+			Date    struct {
+				Gregorian struct {
+					Date string `json:"date"`
+				} `json:"gregorian"`
+			} `json:"date"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&calendarResp); err != nil {
+		return err
+	}
+
+	count := 0
+	for _, day := range calendarResp.Data {
+		var pt PrayerTimes
+		pt.Data.Timings = day.Timings
+		
+		// Build cache key for this specific date
+		dayKey := s.buildCacheKey(loc, day.Date.Gregorian.Date)
+		if err := cache.Save(dayKey, pt); err == nil {
+			count++
+		}
+	}
+
+	log.Printf("Successfully cached %d days of prayer times for %s.", count, loc.City)
+	return nil
 }
 
 // buildCoordinateURL builds the Aladhan API URL using lat/lon coordinates.
