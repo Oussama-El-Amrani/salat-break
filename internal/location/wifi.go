@@ -17,7 +17,7 @@ type wifiAP struct {
 // tryWiFiGeolocation scans nearby WiFi access points and uses a geolocation API
 // to determine the location via WiFi triangulation.
 // This uses the same technique as Google Maps on devices without GPS.
-func tryWiFiGeolocation() (*Location, error) {
+func tryWiFiGeolocation(client HTTPClient) (*Location, error) {
 	aps, err := scanWiFiAPs()
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func tryWiFiGeolocation() (*Location, error) {
 
 	// 1. Try BeaconDB (Community-driven free WiFi database)
 	// This is the primary free WiFi source.
-	loc, err := geolocateViaMozillaCompat(aps)
+	loc, err := geolocateViaMozillaCompat(client, aps)
 	if err == nil {
 		// If accuracy is very low (> 10km), we might want to flag it
 		return loc, nil
@@ -41,7 +41,7 @@ func tryWiFiGeolocation() (*Location, error) {
 	return nil, fmt.Errorf("wifi: all geolocation APIs failed: %w", err)
 }
 
-func geolocateViaMozillaCompat(aps []wifiAP) (*Location, error) {
+func geolocateViaMozillaCompat(client HTTPClient, aps []wifiAP) (*Location, error) {
 	// BeaconDB — community-driven replacement for Mozilla Location Service
 	type beaconReq struct {
 		WifiAccessPoints []struct {
@@ -66,7 +66,8 @@ func geolocateViaMozillaCompat(aps []wifiAP) (*Location, error) {
 		return nil, err
 	}
 
-	resp, err := http.Post("https://beacondb.net/v1/geolocate", "application/json", bytes.NewReader(body))
+	url := getEnvURL("SALAT_BREAK_BEACONDB_URL", "https://beacondb.net/v1/geolocate")
+	resp, err := client.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("beacondb: request failed: %w", err)
 	}

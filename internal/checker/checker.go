@@ -3,20 +3,27 @@ package checker
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
-
-	"github.com/Oussama-El-Amrani/salat-break/internal/media"
-	"github.com/Oussama-El-Amrani/salat-break/internal/notification"
 )
 
+type MediaManager interface {
+	PauseAllPlayers()
+	PlayAllPlayers()
+}
+
+type Notifier interface {
+	SendNotification(title, message string)
+}
+
 type Service struct {
-	mediaCtrl         *media.Controller
-	notifier          *notification.Service
+	mediaCtrl         MediaManager
+	notifier          Notifier
 	inPrayerBreak     bool
 	lastHandledPrayer string
 }
 
-func NewService(mediaCtrl *media.Controller, notifier *notification.Service) *Service {
+func NewService(mediaCtrl MediaManager, notifier Notifier) *Service {
 	return &Service{
 		mediaCtrl: mediaCtrl,
 		notifier:  notifier,
@@ -40,7 +47,14 @@ func (s *Service) CheckAndPause(timings map[string]string, nowOverride ...time.T
 			continue
 		}
 
-		t, err := time.Parse("15:04", tStr)
+		// Sanitize tStr: some API responses include a timezone suffix (e.g. "13:22 (+01)")
+		// We only need the HH:MM part for parsing with "15:04"
+		cleanTStr := tStr
+		if parts := strings.Fields(tStr); len(parts) > 0 {
+			cleanTStr = parts[0]
+		}
+
+		t, err := time.Parse("15:04", cleanTStr)
 		if err != nil {
 			log.Printf("Error parsing time for %s (%s): %v", name, tStr, err)
 			continue

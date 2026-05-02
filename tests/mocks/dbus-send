@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Mock dbus-send for CI testing
+
+# 1. ListNames (Check for players)
+if [[ "$*" == *"org.freedesktop.DBus.ListNames"* ]]; then
+    echo "   string \"org.mpris.MediaPlayer2.spotify\""
+    exit 0
+fi
+
+# 2. Get Metadata (Title/Artist)
+if [[ "$*" == *"org.freedesktop.DBus.Properties.Get"* && "$*" == *"Metadata"* ]]; then
+    echo "   variant       array ["
+    echo "         dict entry("
+    echo "            string \"xesam:title\""
+    echo "            variant                string \"CI Test Song\""
+    echo "         )"
+    echo "         dict entry("
+    echo "            string \"xesam:artist\""
+    echo "            variant                string \"CI Artist\""
+    echo "         )"
+    echo "      ]"
+    exit 0
+fi
+
+# 3. Get PlaybackStatus
+if [[ "$*" == *"org.freedesktop.DBus.Properties.Get"* && "$*" == *"PlaybackStatus"* ]]; then
+    # Return "Playing" by default
+    echo "   variant       string \"Playing\""
+    exit 0
+fi
+
+# 4. Pause/Play Commands
+if [[ "$*" == *"org.mpris.MediaPlayer2.Player.Pause"* ]]; then
+    echo "[DBUS] Pause signal sent to Spotify" >> /tmp/salat-break-dbus.log
+    exit 0
+fi
+
+if [[ "$*" == *"org.mpris.MediaPlayer2.Player.Play"* ]]; then
+    echo "[DBUS] Play signal sent to Spotify" >> /tmp/salat-break-dbus.log
+    exit 0
+fi
+
+exit 0

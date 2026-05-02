@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Mock nmcli for CI testing
+# Supports: nmcli -t -f ACTIVE,SSID device wifi
+
+if [[ "$*" == *"-t -f ACTIVE,SSID device wifi"* ]]; then
+    # Return a deterministic SSID
+    echo "yes:CI_Test_WiFi"
+    echo "no:Other_WiFi"
+elif [[ "$*" == *"-t -f BSSID,SIGNAL,SSID device wifi list"* ]]; then
+    # Format: AA\:BB\:CC\:DD\:EE\:FF:SIGNAL:SSID
+    echo "AA\:BB\:CC\:DD\:EE\:FF:100:CI_Test_WiFi"
+    echo "11\:22\:33\:44\:55\:66:80:Other_WiFi"
+else
+    # Fallback for other commands
+    exit 0
+fi

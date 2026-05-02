@@ -14,12 +14,19 @@ func SanitizeName(name string) string {
 	return reg.ReplaceAllString(name, "_")
 }
 
+var BaseDir string
+
 func getCacheDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	var cacheDir string
+	if BaseDir != "" {
+		cacheDir = filepath.Join(BaseDir, ".cache", "salat-break")
+	} else {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		cacheDir = filepath.Join(home, ".cache", "salat-break")
 	}
-	cacheDir := filepath.Join(home, ".cache", "salat-break")
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return "", err
 	}

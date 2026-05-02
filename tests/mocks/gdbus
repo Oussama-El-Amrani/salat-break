@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Mock gdbus for CI testing
+# Supports: gdbus call --session --dest=org.freedesktop.Notifications ...
+
+if [[ "$*" == *"org.freedesktop.Notifications.Notify"* ]]; then
+    # Return a dummy notification ID
+    echo "(uint32 12345,)"
+    echo "[NOTIFICATION] Title: $9 | Message: ${10}" >> /tmp/salat-break-notifications.log
+    exit 0
+fi
+
+if [[ "$*" == *"org.freedesktop.Notifications.CloseNotification"* ]]; then
+    exit 0
+fi
+
+exit 0

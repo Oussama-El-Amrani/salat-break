@@ -6,11 +6,19 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/Oussama-El-Amrani/salat-break/internal/cache"
 )
+
+func getEnvURL(key, defaultURL string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultURL
+}
 
 // GlobalVerbose controls package-level logging for all location modules.
 var GlobalVerbose bool
@@ -29,17 +37,26 @@ type Location struct {
 	Source      string  `json:"source"` // Which source provided this location
 }
 
-type Service struct {
-	lastLoggedSource string
-	Verbose          bool
-
-	lastFingerprint string
-	lastLocation    *Location
-	lastRefresh     time.Time
+type HTTPClient interface {
+	Get(url string) (*http.Response, error)
+	Do(req *http.Request) (*http.Response, error)
+	Post(url, contentType string, body io.Reader) (*http.Response, error)
 }
 
-func NewService() *Service {
-	return &Service{}
+type Service struct {
+	client           HTTPClient
+	lastLoggedSource string
+	Verbose          bool
+}
+
+func NewService(client ...HTTPClient) *Service {
+	s := &Service{}
+	if len(client) > 0 {
+		s.client = client[0]
+	} else {
+		s.client = &http.Client{Timeout: 10 * time.Second}
+	}
+	return s
 }
 
 // GetLocation resolves the user's location using a multi-source strategy,
@@ -125,7 +142,7 @@ func (s *Service) GetLocation() (*Location, error) {
 func (s *Service) resolveAutomated() (*Location, error) {
 	// 1. Try WiFi AP scanning + geolocation API
 	// This uses direct hardware scanning and is more reliable than GeoClue on many distros.
-	wifiLoc, wifiErr := tryWiFiGeolocation()
+	wifiLoc, wifiErr := tryWiFiGeolocation(s.client)
 	if wifiErr == nil {
 		// If WiFi is highly accurate (< 5km), use it immediately
 		if wifiLoc.Accuracy > 0 && wifiLoc.Accuracy < 5000 {
@@ -139,7 +156,7 @@ func (s *Service) resolveAutomated() (*Location, error) {
 
 	// 2. Try IP geolocation (Consensus)
 	// We do this if WiFi failed or returned low accuracy
-	ipLoc, ipErr := tryIPGeolocation()
+	ipLoc, ipErr := tryIPGeolocation(s.client)
 
 	// 4. Decision Logic: Pick the best available result
 	if wifiErr == nil && ipErr == nil {
@@ -201,9 +218,8 @@ func (s *Service) enrichWithReverseGeocode(loc *Location) {
 		return
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
-	url := fmt.Sprintf("https://nominatim.openstreetmap.org/reverse?format=json&lat=%.6f&lon=%.6f&zoom=10",
-		loc.Lat, loc.Lon)
+	baseURL := getEnvURL("SALAT_BREAK_NOMINATIM_URL", "https://nominatim.openstreetmap.org/reverse")
+	url := fmt.Sprintf("%s?format=json&lat=%.6f&lon=%.6f&zoom=10", baseURL, loc.Lat, loc.Lon)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -212,7 +228,7 @@ func (s *Service) enrichWithReverseGeocode(loc *Location) {
 	}
 	req.Header.Set("User-Agent", "salat-break/1.0")
 
-	resp, err := client.Do(req)
+	resp, err := s.client.Do(req)
 	if err != nil {
 		log.Printf("Reverse geocode: request failed: %v", err)
 		return
@@ -288,8 +304,8 @@ func (s *Service) CurrentFingerprint() string {
 
 	// 2. Fallback: Get Public IP
 	// We use a very fast/simple IP check here
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get("https://api.ipify.org")
+	ipifyURL := getEnvURL("SALAT_BREAK_IPIFY_URL", "https://api.ipify.org")
+	resp, err := s.client.Get(ipifyURL)
 	if err == nil {
 		defer resp.Body.Close()
 		ip, _ := io.ReadAll(resp.Body)

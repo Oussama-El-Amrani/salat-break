@@ -30,13 +30,27 @@ func (pt *PrayerTimes) FormatTimings() string {
 	return strings.Join(results, " | ")
 }
 
-type Service struct {
-	lastLoggedCacheKey string
-	Method             int
+type HTTPClient interface {
+	Get(url string) (*http.Response, error)
 }
 
-func NewService() *Service {
-	return &Service{}
+type Service struct {
+	client             HTTPClient
+	lastLoggedCacheKey string
+	Method             int
+	BaseURL            string
+}
+
+func NewService(client ...HTTPClient) *Service {
+	s := &Service{
+		BaseURL: "https://api.aladhan.com/v1",
+	}
+	if len(client) > 0 {
+		s.client = client[0]
+	} else {
+		s.client = &http.Client{Timeout: 10 * time.Second}
+	}
+	return s
 }
 
 // GetPrayerTimes fetches prayer times for the given location.
@@ -95,7 +109,7 @@ func (s *Service) GetPrayerTimes(loc *location.Location) (*PrayerTimes, error) {
 		log.Printf("Fetching prayer times for today by city: %s, %s", loc.City, loc.Country)
 	}
 
-	resp, err := http.Get(apiURL)
+	resp, err := s.client.Get(apiURL)
 	if err != nil {
 		return nil, err
 	}
@@ -135,10 +149,10 @@ func (s *Service) fetchAndCacheMonth(loc *location.Location, t time.Time) error 
 	params.Add("month", fmt.Sprintf("%02d", int(month)))
 	params.Add("year", fmt.Sprintf("%d", year))
 
-	apiURL := fmt.Sprintf("https://api.aladhan.com/v1/calendar?%s", params.Encode())
+	apiURL := fmt.Sprintf("%s/calendar?%s", s.BaseURL, params.Encode())
 	log.Printf("Pre-fetching prayer times for the entire month (%02d/%d) to enable offline support...", int(month), year)
 
-	resp, err := http.Get(apiURL)
+	resp, err := s.client.Get(apiURL)
 	if err != nil {
 		return err
 	}
@@ -192,7 +206,7 @@ func (s *Service) buildCoordinateURL(loc *location.Location, date string) string
 	if loc.Timezone != "" {
 		params.Add("timezonestring", loc.Timezone)
 	}
-	return fmt.Sprintf("https://api.aladhan.com/v1/timings/%s?%s", date, params.Encode())
+	return fmt.Sprintf("%s/timings/%s?%s", s.BaseURL, date, params.Encode())
 }
 
 // buildCityURL builds the Aladhan API URL using city/country names (fallback).
@@ -203,7 +217,7 @@ func (s *Service) buildCityURL(loc *location.Location, date string) string {
 	if s.Method > 0 {
 		params.Add("method", fmt.Sprintf("%d", s.Method))
 	}
-	return fmt.Sprintf("https://api.aladhan.com/v1/timingsByCity/%s?%s", date, params.Encode())
+	return fmt.Sprintf("%s/timingsByCity/%s?%s", s.BaseURL, date, params.Encode())
 }
 
 // buildCacheKey creates a unique cache key based on the location parameters used.

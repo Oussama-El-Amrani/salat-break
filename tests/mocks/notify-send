@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Mock notify-send for CI testing
+# Usage: notify-send "Title" "Message"
+
+echo "[NOTIFICATION] Title: $1 | Message: $2" >> /tmp/salat-break-notifications.log
+exit 0

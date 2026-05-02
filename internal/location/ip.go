@@ -7,13 +7,12 @@ import (
 	"net/http"
 	"sort"
 	"sync"
-	"time"
 )
 
 // tryIPGeolocation queries multiple IP geolocation providers in parallel
 // and uses a consensus (median) of coordinates for better accuracy.
 // This is the least accurate method but the most reliable fallback.
-func tryIPGeolocation() (*Location, error) {
+func tryIPGeolocation(client HTTPClient) (*Location, error) {
 	type result struct {
 		loc *Location
 		err error
@@ -21,7 +20,7 @@ func tryIPGeolocation() (*Location, error) {
 
 	providers := []struct {
 		name string
-		fn   func() (*Location, error)
+		fn   func(HTTPClient) (*Location, error)
 	}{
 		{"ipinfo.io", fetchFromIPInfo},
 		{"ip-api.com", fetchFromIPAPI},
@@ -33,9 +32,9 @@ func tryIPGeolocation() (*Location, error) {
 
 	for _, p := range providers {
 		wg.Add(1)
-		go func(name string, fn func() (*Location, error)) {
+		go func(name string, fn func(HTTPClient) (*Location, error)) {
 			defer wg.Done()
-			loc, err := fn()
+			loc, err := fn(client)
 			if err != nil {
 				logVerbose("IP geolocation [%s]: failed: %v", name, err)
 			} else {
@@ -87,9 +86,9 @@ func tryIPGeolocation() (*Location, error) {
 	return consensus, nil
 }
 
-func fetchFromIPInfo() (*Location, error) {
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get("https://ipinfo.io/json")
+func fetchFromIPInfo(client HTTPClient) (*Location, error) {
+	url := getEnvURL("SALAT_BREAK_IPINFO_URL", "https://ipinfo.io/json")
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -125,9 +124,9 @@ func fetchFromIPInfo() (*Location, error) {
 	}, nil
 }
 
-func fetchFromIPAPI() (*Location, error) {
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get("http://ip-api.com/json/?fields=city,country,lat,lon,timezone")
+func fetchFromIPAPI(client HTTPClient) (*Location, error) {
+	url := getEnvURL("SALAT_BREAK_IPAPI_URL", "http://ip-api.com/json/?fields=city,country,lat,lon,timezone")
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -161,9 +160,9 @@ func fetchFromIPAPI() (*Location, error) {
 }
 
 
-func fetchFromIPWhois() (*Location, error) {
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get("https://ipwhois.app/json/")
+func fetchFromIPWhois(client HTTPClient) (*Location, error) {
+	url := getEnvURL("SALAT_BREAK_IPWHOIS_URL", "https://ipwhois.app/json/")
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}

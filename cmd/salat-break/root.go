@@ -74,6 +74,9 @@ func runRoot(cmd *cobra.Command, args []string) {
 	locationSvc := location.NewService()
 	locationSvc.Verbose = viper.GetBool("verbose")
 	prayerSvc := prayer.NewService()
+	if val := os.Getenv("SALAT_BREAK_ALADHAN_URL"); val != "" {
+		prayerSvc.BaseURL = val
+	}
 	checkSvc := checker.NewService(mediaCtrl, notifier)
 
 	// Handle Tests
@@ -84,7 +87,15 @@ func runRoot(cmd *cobra.Command, args []string) {
 	}
 	if viper.GetBool("test-play") {
 		log.Println("Test: Resuming all media players...")
-		mediaCtrl.PlayAllPlayers()
+		// For the test flag, if no players are tracked, try to resume all active MPRIS players
+		if len(mediaCtrl.GetAllPlayers()) > 0 {
+			players := mediaCtrl.GetAllPlayers()
+			for _, p := range players {
+				log.Printf("Test: Resuming player %s", p)
+				cmd := exec.Command("dbus-send", "--print-reply", "--dest="+p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
+				_ = cmd.Run()
+			}
+		}
 		return
 	}
 	if viper.GetBool("test-notify") {
