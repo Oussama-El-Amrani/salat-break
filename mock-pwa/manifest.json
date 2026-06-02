@@ -1,0 +1,16 @@
+{
+  "short_name": "SpotifyMock",
+  "name": "Spotify PWA Mock Player",
+  "icons": [
+    {
+      "src": "https://i.scdn.co/image/ab67616d0000b273b1897d28c89b2f293cfd9431",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#121212",
+  "theme_color": "#1DB954",
+  "display": "standalone",
+  "orientation": "portrait"
+}

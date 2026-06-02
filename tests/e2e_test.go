@@ -86,6 +86,7 @@ func TestE2E_MediaPause(t *testing.T) {
 	// Verify DBUS log
 	dbusLog, _ := os.ReadFile("/tmp/salat-break-dbus.log")
 	assert.Contains(t, string(dbusLog), "Pause signal sent to Spotify")
+	assert.Contains(t, string(dbusLog), "Pause signal sent to Chromium PWA")
 
 	// Verify notification log
 	notifyLog, _ := os.ReadFile("/tmp/salat-break-notifications.log")

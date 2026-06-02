@@ -19,10 +19,15 @@ func NewController(notifier Notifier) *Controller {
 	}
 }
 
-func (c *Controller) IsMusic(player string, title, artist string) bool {
+func (c *Controller) IsMusic(player string, metadata map[string]string) bool {
 	player = strings.ToLower(player)
-	title = strings.ToLower(title)
-	artist = strings.ToLower(artist)
+	title := strings.ToLower(metadata["title"])
+	artist := strings.ToLower(metadata["artist"])
+	_ = artist
+
+	if metadata["is_spotify"] == "true" {
+		return true
+	}
 
 	musicPlayers := []string{"spotify", "youtube_music", "rhythmbox", "clementine", "mpd", "audacious", "music", "itunes", "music.app"}
 	for _, mp := range musicPlayers {

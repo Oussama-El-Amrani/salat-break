@@ -5,11 +5,30 @@
 # 1. ListNames (Check for players)
 if [[ "$*" == *"org.freedesktop.DBus.ListNames"* ]]; then
     echo "   string \"org.mpris.MediaPlayer2.spotify\""
+    echo "   string \"org.mpris.MediaPlayer2.chromium.instance1234\""
     exit 0
 fi
 
 # 2. Get Metadata (Title/Artist)
 if [[ "$*" == *"org.freedesktop.DBus.Properties.Get"* && "$*" == *"Metadata"* ]]; then
+    if [[ "$*" == *"chromium"* ]]; then
+        echo "   variant       array ["
+        echo "         dict entry("
+        echo "            string \"xesam:title\""
+        echo "            variant                string \"PWA Song\""
+        echo "         )"
+        echo "         dict entry("
+        echo "            string \"xesam:artist\""
+        echo "            variant                string \"PWA Artist\""
+        echo "         )"
+        echo "         dict entry("
+        echo "            string \"mpris:artUrl\""
+        echo "            variant                string \"https://i.scdn.co/image/ab67616d0000b273b1897d28c89b2f293cfd9431\""
+        echo "         )"
+        echo "      ]"
+        exit 0
+    fi
+    
     echo "   variant       array ["
     echo "         dict entry("
     echo "            string \"xesam:title\""
@@ -32,12 +51,20 @@ fi
 
 # 4. Pause/Play Commands
 if [[ "$*" == *"org.mpris.MediaPlayer2.Player.Pause"* ]]; then
-    echo "[DBUS] Pause signal sent to Spotify" >> /tmp/salat-break-dbus.log
+    if [[ "$*" == *"chromium"* ]]; then
+        echo "[DBUS] Pause signal sent to Chromium PWA" >> /tmp/salat-break-dbus.log
+    else
+        echo "[DBUS] Pause signal sent to Spotify" >> /tmp/salat-break-dbus.log
+    fi
     exit 0
 fi
 
 if [[ "$*" == *"org.mpris.MediaPlayer2.Player.Play"* ]]; then
-    echo "[DBUS] Play signal sent to Spotify" >> /tmp/salat-break-dbus.log
+    if [[ "$*" == *"chromium"* ]]; then
+        echo "[DBUS] Play signal sent to Chromium PWA" >> /tmp/salat-break-dbus.log
+    else
+        echo "[DBUS] Play signal sent to Spotify" >> /tmp/salat-break-dbus.log
+    fi
     exit 0
 fi
 

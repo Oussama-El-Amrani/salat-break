@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spotify PWA Mock Player</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/app.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    /* Add extra modern scrollbars */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0,0,0,0.2);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255,255,255,0.2);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="logo">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.894-.98-.336.075-.668-.135-.744-.47-.076-.336.135-.668.47-.743 3.856-.88 7.15-.503 9.822 1.13.295.178.387.563.206.856zm1.225-2.72c-.227.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.076-1.182-.412.125-.842-.107-.968-.52-.125-.41.107-.84.52-.967 3.667-1.11 8.24-.567 11.338 1.337.367.226.488.707.26 1.072zm.106-2.833C14.384 8.78 8.563 8.588 5.173 9.617c-.52.157-1.07-.143-1.227-.662-.158-.518.143-1.07.662-1.228 3.886-1.18 10.316-.954 14.387 1.464.468.278.622.883.344 1.352-.278.47-.883.623-1.352.344z"/>
+        </svg>
+        <span>SalatSpotify</span>
+      </div>
+      
+      <ul class="menu-list">
+        <li>
+          <a href="#" class="menu-item active">
+            <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            <span>Home</span>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="menu-item">
+            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <span>Search</span>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="menu-item">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            <span>My PWA library</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+      <div class="header">
+        <div class="pwa-badge">PROGRESSIVE WEB APP ACTIVE</div>
+        <div class="user-profile" style="font-weight: 700; color: var(--primary);">Developer Mode</div>
+      </div>
+
+      <!-- Hero Banner -->
+      <div class="player-hero">
+        <img class="album-art-large" src="https://i.scdn.co/image/ab67616d0000b273b1897d28c89b2f293cfd9431" alt="Album Art">
+        <div class="hero-details">
+          <span class="hero-type">Spotify PWA Mock Player</span>
+          <h1 class="hero-title">Mock Spotify Song</h1>
+          <span class="hero-artist">By <span>Antigravity Artist</span> • Google DeepMind Salat Break</span>
+        </div>
+      </div>
+
+      <!-- Informative Instructions for Mock Testing -->
+      <div class="status-panel">
+        <h2 class="status-title">🚀 Salat Break PWA Control Panel</h2>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.6;">
+          This Progressive Web App (PWA) mimics the Spotify Web Player. It uses the HTML5 <strong>Media Session API</strong> to register system media actions and exposes a Spotify album artwork URL (<code>i.scdn.co</code>) so the Linux MPRIS server / macOS AppleScript recognizes it as Spotify.
+        </p>
+        
+        <div class="status-row">
+          <span class="status-label">Mock Player Status</span>
+          <span id="playbackStatus" class="status-value status-paused">Paused</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Detected Media Source</span>
+          <span class="status-value" style="color: var(--primary);">Spotify PWA (i.scdn.co metadata)</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">MPRIS / AppleScript Bridge</span>
+          <span class="status-value status-active">Active</span>
+        </div>
+
+        <div class="visualizer">
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+        </div>
+
+        <div style="margin-top: 20px; font-size: 13px; color: var(--text-muted); background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; border-left: 3px solid var(--primary);">
+          <strong>How to Mock Test:</strong>
+          <ol style="margin-left: 18px; margin-top: 6px; line-height: 1.5;">
+            <li>Click the green <strong>Play</strong> button in the bottom bar below to start the soft ambient synth sound.</li>
+            <li>Run <code>salat-break --test-pause</code> in your terminal.</li>
+            <li>Verify that the synth tone automatically pauses and the UI updates to <strong>Paused</strong>!</li>
+            <li>Run <code>salat-break --test-play</code> in your terminal to resume playback.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Playback Control Bar -->
+  <div class="playback-bar">
+    <!-- Now Playing Left side -->
+    <div class="now-playing">
+      <img class="album-art-mini" src="https://i.scdn.co/image/ab67616d0000b273b1897d28c89b2f293cfd9431" alt="Album Art Mini">
+      <div class="track-info">
+        <span class="track-title">PWA Mock Spotify Song</span>
+        <span class="track-artist">Antigravity Artist</span>
+      </div>
+    </div>
+
+    <!-- Center Playback Controls -->
+    <div class="player-controls">
+      <div class="control-buttons">
+        <button class="btn-icon">
+          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6L18 6v12z"/></svg>
+        </button>
+        <button class="btn-icon play-pause" id="playPauseBtn">
+          <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="btn-icon">
+          <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
+      </div>
+
+      <div class="progress-bar-container">
+        <span class="time-label" id="currTime">0:00</span>
+        <div class="progress-slider">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <span class="time-label">3:00</span>
+      </div>
+    </div>
+
+    <!-- Right side controls (Volume/etc.) -->
+    <div class="right-controls">
+      <button class="btn-icon">
+        <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+      </button>
+      <div class="progress-slider" style="width: 80px;">
+        <div class="progress-fill" style="width: 70%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

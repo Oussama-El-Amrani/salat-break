@@ -41,18 +41,30 @@ func (c *Controller) GetMetadata(player string) map[string]string {
 		return metadata
 	}
 
-	lines := strings.Split(string(output), "\n")
+	outputStr := string(output)
+	if strings.Contains(strings.ToLower(outputStr), "spotify") || strings.Contains(strings.ToLower(outputStr), "scdn.co") {
+		metadata["is_spotify"] = "true"
+	}
+
+	lines := strings.Split(outputStr, "\n")
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
-		if strings.Contains(line, "string \"xesam:title\"") || strings.Contains(line, "string \"xesam:artist\"") {
+		if strings.Contains(line, "string \"xesam:title\"") ||
+			strings.Contains(line, "string \"xesam:artist\"") ||
+			strings.Contains(line, "string \"mpris:artUrl\"") ||
+			strings.Contains(line, "string \"xesam:url\"") {
 			if i+1 < len(lines) {
 				valLine := strings.TrimSpace(lines[i+1])
 				parts := strings.Split(valLine, "\"")
 				if len(parts) >= 2 {
 					if strings.Contains(line, "title") {
 						metadata["title"] = parts[1]
-					} else {
+					} else if strings.Contains(line, "artist") {
 						metadata["artist"] = parts[1]
+					} else if strings.Contains(line, "artUrl") {
+						metadata["artUrl"] = parts[1]
+					} else if strings.Contains(line, "url") {
+						metadata["url"] = parts[1]
 					}
 				}
 			}
@@ -93,7 +105,7 @@ func (c *Controller) PauseAllPlayers() {
 		title := meta["title"]
 		artist := meta["artist"]
 
-		if c.IsMusic(player, title, artist) {
+		if c.IsMusic(player, meta) {
 			status := c.GetPlaybackStatus(player)
 			if status == "Playing" {
 				log.Printf("Pausing music player %s: %s - %s", player, artist, title)

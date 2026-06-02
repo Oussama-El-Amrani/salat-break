@@ -97,7 +97,7 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 
 ## 🏗️ Architecture
 
-1. **Geolocation**: Uses a prioritised multi-source strategy (see [GEOLOCATION_LOGIC.md](./GEOLOCATION_LOGIC.md)):
+1. **Geolocation**: Uses a prioritised multi-source strategy :
     - **WiFi Triangulation**: Scans nearby APs via `nmcli` and resolves coordinates via the BeaconDB API.
     - **IP Consensus**: Queries multiple IP providers simultaneously (ipinfo.io, ip-api.com, ipwhois.app) to find a median consensus point.
 2. **Reverse Geocoding**: Converts coordinates to local city/country names via OpenStreetMap.
