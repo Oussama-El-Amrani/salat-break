@@ -21,4 +21,4 @@ jobs:
       run: go build -o salat-break ./cmd/salat-break
 
     - name: Run E2E Tests
-      run: ./tests/e2e/run-e2e.sh
+      run: go test -v ./tests/...
