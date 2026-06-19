@@ -72,6 +72,29 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 | `--version` | | Display the current installed version. |
 | `update` | | **Subcommand**: Update salat-break to the latest version automatically. |
 
+### Timings Dashboard Example
+
+Running `salat-break --show-timings` (or `-t`) displays a beautifully formatted, color-coded dashboard showing your location details, resolution source, timezone method, today's prayer times, their relative status, and upcoming break windows:
+
+```text
+🕌  SALAT BREAK TIMINGS
+────────────────────────────────────────────────────────
+📍 Location:  Fès ⴼⴰⵙ فاس, Maroc ⵍⵎⵖﺮⵉⴱ المغرب (Auto-detected)
+📡 Source:    WiFi Geolocation (BeaconDB) (accuracy: 19m)
+⚙️  Method:    Morocco (Ministry of Habous and Islamic Affairs)
+📅 Date:      Friday, 19 Jun 2026 (local time: 12:47:02)
+────────────────────────────────────────────────────────
+  Prayer     Time       Status       Remaining / Elapsed
+────────────────────────────────────────────────────────
+   Fajr       04:17 (+01) Passed       8h 30m ago
+➔  Dhuhr      13:26 (+01) Next         in 39m
+   Asr        17:07 (+01) Upcoming     in 4h 20m
+   Maghrib    20:39 (+01) Upcoming     in 7h 52m
+   Isha       22:12 (+01) Upcoming     in 9h 25m
+────────────────────────────────────────────────────────
+👉 Next Break:   Dhuhr in 36m (Break window: 13:23 - 13:29)
+```
+
 ### Testing & Debugging
 
 | Flag | Description |

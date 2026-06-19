@@ -111,9 +111,13 @@ func runRoot(cmd *cobra.Command, args []string) {
 		return
 	}
 	if viper.GetBool("show-location") {
+		if !viper.GetBool("verbose") {
+			log.SetOutput(io.Discard)
+		}
 		loc, err := locationSvc.GetLocation()
 		if err != nil {
-			log.Fatalf("Error getting location: %v", err)
+			fmt.Fprintf(os.Stderr, "Error getting location: %v\n", err)
+			os.Exit(1)
 		}
 		fmt.Printf("Current Calculated Location:\n")
 		fmt.Printf("  City:      %s\n", loc.City)
@@ -125,16 +129,21 @@ func runRoot(cmd *cobra.Command, args []string) {
 		return
 	}
 	if viper.GetBool("show-timings") {
+		if !viper.GetBool("verbose") {
+			log.SetOutput(io.Discard)
+		}
 		loc, err := locationSvc.GetLocation()
 		if err != nil {
-			log.Fatalf("Error getting location: %v", err)
+			fmt.Fprintf(os.Stderr, "Error getting location: %v\n", err)
+			os.Exit(1)
 		}
 		prayerSvc.Method = loc.Method
-		_, err = prayerSvc.GetPrayerTimes(loc)
+		timings, err := prayerSvc.GetPrayerTimes(loc)
 		if err != nil {
-			log.Fatalf("Error getting prayer times: %v", err)
+			fmt.Fprintf(os.Stderr, "Error getting prayer times: %v\n", err)
+			os.Exit(1)
 		}
-		// Timings are logged by GetPrayerTimes
+		printTimingsUX(loc, prayerSvc, timings)
 		return
 	}
 

@@ -140,3 +140,45 @@ func TestE2E_LocationDetection(t *testing.T) {
 	// Should show city from mock server
 	assert.Contains(t, out.String(), "City:      CI_City")
 }
+
+func TestE2E_ShowTimings(t *testing.T) {
+	mockServer := NewMockAPIServer()
+	defer mockServer.Close()
+
+	// Setup cache override
+	tmpCache, _ := os.MkdirTemp("", "salat-break-e2e-cache-*")
+	defer os.RemoveAll(tmpCache)
+
+	absMocks, _ := filepath.Abs("mocks")
+
+	cmd := exec.Command(binaryPath, "--show-timings")
+	cmd.Env = append(os.Environ(), 
+		"PATH="+absMocks+":"+os.Getenv("PATH"),
+		"HOME="+tmpCache,
+		"SALAT_BREAK_ALADHAN_URL="+mockServer.URL+"/v1",
+		"SALAT_BREAK_BEACONDB_URL="+mockServer.URL+"/v1/geolocate",
+		"SALAT_BREAK_IPINFO_URL="+mockServer.URL+"/json",
+		"SALAT_BREAK_IPAPI_URL="+mockServer.URL+"/json",
+		"SALAT_BREAK_IPWHOIS_URL="+mockServer.URL+"/json",
+		"SALAT_BREAK_NOMINATIM_URL="+mockServer.URL+"/reverse",
+		"SALAT_BREAK_IPIFY_URL="+mockServer.URL+"/api.ipify.org",
+	)
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	err := cmd.Run()
+	assert.NoError(t, err, out.String())
+
+	outputStr := out.String()
+	assert.Contains(t, outputStr, "SALAT BREAK TIMINGS")
+	assert.Contains(t, outputStr, "CI_City")
+	assert.Contains(t, outputStr, "CI_Country")
+	assert.Contains(t, outputStr, "Fajr")
+	assert.Contains(t, outputStr, "Dhuhr")
+	assert.Contains(t, outputStr, "Asr")
+	assert.Contains(t, outputStr, "Maghrib")
+	assert.Contains(t, outputStr, "Isha")
+}
+
