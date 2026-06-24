@@ -10,6 +10,7 @@ import (
 type MediaManager interface {
 	PauseAllPlayers()
 	PlayAllPlayers()
+	EnforceSilence()
 }
 
 type Notifier interface {
@@ -22,13 +23,15 @@ type Service struct {
 	inPrayerBreak     bool
 	lastHandledPrayer string
 	AutoPlay          bool
+	AllowPlayback     bool
 }
 
 func NewService(mediaCtrl MediaManager, notifier Notifier) *Service {
 	return &Service{
-		mediaCtrl: mediaCtrl,
-		notifier:  notifier,
-		AutoPlay:  true, // Default to true
+		mediaCtrl:     mediaCtrl,
+		notifier:      notifier,
+		AutoPlay:      true, // Default to true
+		AllowPlayback: false, // Default to false
 	}
 }
 
@@ -88,6 +91,8 @@ func (s *Service) CheckAndPause(timings map[string]string, nowOverride ...time.T
 			s.notifier.SendNotification("Salat Break", msg)
 
 			s.mediaCtrl.PauseAllPlayers()
+		} else if !s.AllowPlayback {
+			s.mediaCtrl.EnforceSilence()
 		}
 	} else {
 		if s.inPrayerBreak {

@@ -19,6 +19,10 @@ func (m *MockMediaManager) PlayAllPlayers() {
 	m.Called()
 }
 
+func (m *MockMediaManager) EnforceSilence() {
+	m.Called()
+}
+
 type MockNotifier struct {
 	mock.Mock
 }
@@ -70,10 +74,11 @@ func TestCheckAndPause(t *testing.T) {
 		mockMedia.AssertExpectations(t)
 	})
 
-	t.Run("Staying within prayer window", func(t *testing.T) {
+	t.Run("Staying within prayer window - default strict mode", func(t *testing.T) {
 		mockMedia := new(MockMediaManager)
 		mockNotify := new(MockNotifier)
 		s := NewService(mockMedia, mockNotify)
+		s.AllowPlayback = false // Default
 
 		// Set initial state as already in break
 		s.inPrayerBreak = true
@@ -82,11 +87,34 @@ func TestCheckAndPause(t *testing.T) {
 		// 12:01:00 is within the window
 		now := time.Date(2026, 3, 31, 12, 1, 0, 0, time.Local)
 
-		// Should NOT call notify or pause again
+		// Should call EnforceSilence but NOT notify again
+		mockMedia.On("EnforceSilence").Once()
+
+		s.CheckAndPause(timings, now)
+
+		mockNotify.AssertNotCalled(t, "SendNotification")
+		mockMedia.AssertExpectations(t)
+	})
+
+	t.Run("Staying within prayer window - allow playback mode", func(t *testing.T) {
+		mockMedia := new(MockMediaManager)
+		mockNotify := new(MockNotifier)
+		s := NewService(mockMedia, mockNotify)
+		s.AllowPlayback = true
+
+		// Set initial state as already in break
+		s.inPrayerBreak = true
+		s.lastHandledPrayer = "Dhuhr"
+
+		// 12:01:00 is within the window
+		now := time.Date(2026, 3, 31, 12, 1, 0, 0, time.Local)
+
+		// Should NOT call notify or pause again (either PauseAllPlayers or EnforceSilence)
 		s.CheckAndPause(timings, now)
 
 		mockNotify.AssertNotCalled(t, "SendNotification")
 		mockMedia.AssertNotCalled(t, "PauseAllPlayers")
+		mockMedia.AssertNotCalled(t, "EnforceSilence")
 	})
 
 	t.Run("Handling timezone suffix in timings", func(t *testing.T) {

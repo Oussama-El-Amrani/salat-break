@@ -93,7 +93,17 @@ func (c *Controller) GetPlaybackStatus(player string) string {
 }
 
 func (c *Controller) PauseAllPlayers() {
-	c.playersToResume = []string{}
+	c.pauseAllPlayers(false)
+}
+
+func (c *Controller) EnforceSilence() {
+	c.pauseAllPlayers(true)
+}
+
+func (c *Controller) pauseAllPlayers(accumulate bool) {
+	if !accumulate {
+		c.playersToResume = []string{}
+	}
 	players := c.GetAllPlayers()
 	if len(players) == 0 {
 		return
@@ -117,7 +127,18 @@ func (c *Controller) PauseAllPlayers() {
 				} else {
 					pausedTitles = append(pausedTitles, player)
 				}
-				c.playersToResume = append(c.playersToResume, player)
+
+				// Only add to playersToResume if not already present
+				found := false
+				for _, p := range c.playersToResume {
+					if p == player {
+						found = true
+						break
+					}
+				}
+				if !found {
+					c.playersToResume = append(c.playersToResume, player)
+				}
 			} else {
 				log.Printf("Music player %s is not playing (status: %s). Ignored.", player, status)
 			}
@@ -131,7 +152,11 @@ func (c *Controller) PauseAllPlayers() {
 		if len(pausedTitles) > 2 {
 			msg = fmt.Sprintf("Paused %d media players", len(pausedTitles))
 		}
-		c.notifier.SendNotification("Media Paused", msg)
+		if accumulate {
+			c.notifier.SendNotification("Media Paused during prayer window", msg)
+		} else {
+			c.notifier.SendNotification("Media Paused", msg)
+		}
 	}
 }
 
