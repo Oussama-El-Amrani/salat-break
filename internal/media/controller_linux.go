@@ -33,43 +33,63 @@ func (c *Controller) GetAllPlayers() []string {
 	return players
 }
 
+func extractDBusDictValue(lines []string, keyLineIdx int) string {
+	for offset := 1; offset <= 3 && keyLineIdx+offset < len(lines); offset++ {
+		valLine := strings.TrimSpace(lines[keyLineIdx+offset])
+		if valLine == ")" || strings.HasPrefix(valLine, "dict entry(") {
+			break
+		}
+		parts := strings.Split(valLine, "\"")
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+	}
+	return ""
+}
+
 func (c *Controller) GetMetadata(player string) map[string]string {
 	metadata := make(map[string]string)
 	cmd := exec.Command("dbus-send", "--print-reply", "--session", "--dest="+player, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties.Get", "string:org.mpris.MediaPlayer2.Player", "string:Metadata")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		metadata["provider"] = ResolveProviderName(player, metadata)
 		return metadata
 	}
 
 	outputStr := string(output)
-	if strings.Contains(strings.ToLower(outputStr), "spotify") || strings.Contains(strings.ToLower(outputStr), "scdn.co") {
+	lowerOut := strings.ToLower(outputStr)
+	if strings.Contains(lowerOut, "spotify") || strings.Contains(lowerOut, "scdn.co") {
 		metadata["is_spotify"] = "true"
 	}
 
 	lines := strings.Split(outputStr, "\n")
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
-		if strings.Contains(line, "string \"xesam:title\"") ||
-			strings.Contains(line, "string \"xesam:artist\"") ||
-			strings.Contains(line, "string \"mpris:artUrl\"") ||
-			strings.Contains(line, "string \"xesam:url\"") {
-			if i+1 < len(lines) {
-				valLine := strings.TrimSpace(lines[i+1])
-				parts := strings.Split(valLine, "\"")
-				if len(parts) >= 2 {
-					if strings.Contains(line, "title") {
-						metadata["title"] = parts[1]
-					} else if strings.Contains(line, "artist") {
-						metadata["artist"] = parts[1]
-					} else if strings.Contains(line, "artUrl") {
-						metadata["artUrl"] = parts[1]
-					} else if strings.Contains(line, "url") {
-						metadata["url"] = parts[1]
-					}
-				}
+		switch {
+		case strings.Contains(line, "string \"xesam:title\""):
+			if v := extractDBusDictValue(lines, i); v != "" {
+				metadata["title"] = v
+			}
+		case strings.Contains(line, "string \"xesam:artist\""):
+			if v := extractDBusDictValue(lines, i); v != "" {
+				metadata["artist"] = v
+			}
+		case strings.Contains(line, "string \"xesam:album\""):
+			if v := extractDBusDictValue(lines, i); v != "" {
+				metadata["album"] = v
+			}
+		case strings.Contains(line, "string \"mpris:artUrl\""):
+			if v := extractDBusDictValue(lines, i); v != "" {
+				metadata["artUrl"] = v
+			}
+		case strings.Contains(line, "string \"xesam:url\""):
+			if v := extractDBusDictValue(lines, i); v != "" {
+				metadata["url"] = v
 			}
 		}
 	}
+
+	metadata["provider"] = ResolveProviderName(player, metadata)
 	return metadata
 }
 
@@ -108,24 +128,29 @@ func (c *Controller) pauseAllPlayers(accumulate bool) {
 	if len(players) == 0 {
 		return
 	}
-	
+
 	var pausedTitles []string
 	for _, player := range players {
 		meta := c.GetMetadata(player)
 		title := meta["title"]
 		artist := meta["artist"]
 
+		if c.IsProviderAllowed(player, meta) {
+			log.Printf("Provider %s (%s) is allowed during Salat slot. Skipping pause.", ResolveProviderName(player, meta), player)
+			continue
+		}
+
 		if c.IsMusic(player, meta) {
 			status := c.GetPlaybackStatus(player)
 			if status == "Playing" {
-				log.Printf("Pausing music player %s: %s - %s", player, artist, title)
+				log.Printf("Pausing media provider %s: %s - %s", player, artist, title)
 				cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
 				_ = cmd.Run()
-				
+
 				if title != "" {
 					pausedTitles = append(pausedTitles, title)
 				} else {
-					pausedTitles = append(pausedTitles, player)
+					pausedTitles = append(pausedTitles, ResolveProviderName(player, meta))
 				}
 
 				// Only add to playersToResume if not already present
@@ -140,10 +165,10 @@ func (c *Controller) pauseAllPlayers(accumulate bool) {
 					c.playersToResume = append(c.playersToResume, player)
 				}
 			} else {
-				log.Printf("Music player %s is not playing (status: %s). Ignored.", player, status)
+				log.Printf("Media provider %s is not playing (status: %s). Ignored.", player, status)
 			}
 		} else if title != "" {
-			log.Printf("Non-music media detected on %s: %s. Not pausing.", player, title)
+			log.Printf("Non-music browser media detected on %s: %s. Not pausing.", player, title)
 		}
 	}
 
@@ -170,4 +195,13 @@ func (c *Controller) PlayAllPlayers() {
 		_ = cmd.Run()
 	}
 	c.playersToResume = []string{}
+}
+
+func (c *Controller) ForcePlayAllPlayers() {
+	players := c.GetAllPlayers()
+	for _, p := range players {
+		log.Printf("Test: Resuming player %s", p)
+		cmd := exec.Command("dbus-send", "--print-reply", "--dest="+p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
+		_ = cmd.Run()
+	}
 }

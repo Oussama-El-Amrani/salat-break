@@ -1,0 +1,4 @@
+#!/bin/bash
+# Mock systemctl for E2E testing
+echo "[SYSTEMCTL] $*" >> /tmp/salat-break-systemctl.log
+exit 0

@@ -5,7 +5,9 @@
 # 1. ListNames (Check for players)
 if [[ "$*" == *"org.freedesktop.DBus.ListNames"* ]]; then
     echo "   string \"org.mpris.MediaPlayer2.spotify\""
+    echo "   string \"org.mpris.MediaPlayer2.vlc\""
     echo "   string \"org.mpris.MediaPlayer2.chromium.instance1234\""
+    echo "   string \"org.mpris.MediaPlayer2.firefox.instance_1_99\""
     exit 0
 fi
 
@@ -28,7 +30,37 @@ if [[ "$*" == *"org.freedesktop.DBus.Properties.Get"* && "$*" == *"Metadata"* ]]
         echo "      ]"
         exit 0
     fi
-    
+
+    if [[ "$*" == *"vlc"* ]]; then
+        echo "   variant       array ["
+        echo "         dict entry("
+        echo "            string \"xesam:title\""
+        echo "            variant                string \"Audio Track 01.flac\""
+        echo "         )"
+        echo "         dict entry("
+        echo "            string \"xesam:artist\""
+        echo "            variant                array ["
+        echo "               string \"VLC Artist\""
+        echo "            ]"
+        echo "         )"
+        echo "      ]"
+        exit 0
+    fi
+
+    if [[ "$*" == *"firefox"* ]]; then
+        echo "   variant       array ["
+        echo "         dict entry("
+        echo "            string \"xesam:title\""
+        echo "            variant                string \"Go Programming Tutorial\""
+        echo "         )"
+        echo "         dict entry("
+        echo "            string \"xesam:url\""
+        echo "            variant                string \"https://www.youtube.com/watch?v=tutorial123\""
+        echo "         )"
+        echo "      ]"
+        exit 0
+    fi
+
     echo "   variant       array ["
     echo "         dict entry("
     echo "            string \"xesam:title\""
@@ -53,6 +85,10 @@ fi
 if [[ "$*" == *"org.mpris.MediaPlayer2.Player.Pause"* ]]; then
     if [[ "$*" == *"chromium"* ]]; then
         echo "[DBUS] Pause signal sent to Chromium PWA" >> /tmp/salat-break-dbus.log
+    elif [[ "$*" == *"vlc"* ]]; then
+        echo "[DBUS] Pause signal sent to VLC" >> /tmp/salat-break-dbus.log
+    elif [[ "$*" == *"firefox"* ]]; then
+        echo "[DBUS] Pause signal sent to Firefox" >> /tmp/salat-break-dbus.log
     else
         echo "[DBUS] Pause signal sent to Spotify" >> /tmp/salat-break-dbus.log
     fi
@@ -62,6 +98,10 @@ fi
 if [[ "$*" == *"org.mpris.MediaPlayer2.Player.Play"* ]]; then
     if [[ "$*" == *"chromium"* ]]; then
         echo "[DBUS] Play signal sent to Chromium PWA" >> /tmp/salat-break-dbus.log
+    elif [[ "$*" == *"vlc"* ]]; then
+        echo "[DBUS] Play signal sent to VLC" >> /tmp/salat-break-dbus.log
+    elif [[ "$*" == *"firefox"* ]]; then
+        echo "[DBUS] Play signal sent to Firefox" >> /tmp/salat-break-dbus.log
     else
         echo "[DBUS] Play signal sent to Spotify" >> /tmp/salat-break-dbus.log
     fi

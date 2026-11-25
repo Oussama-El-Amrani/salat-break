@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev/)
 
-**Salat Break** is a lightweight, intelligent background service for Linux and macOS that automatically pauses your music players (Spotify, Music.app, Rhythmbox, etc.) during prayer times. It stays out of your way until it's time for prayer, ensuring you never miss a Salat while listening to media.
+**Salat Break** is a lightweight, intelligent background service for Linux and macOS that automatically pauses any media/music provider (VLC, MPV, Spotify, Music.app, Rhythmbox, Amberol, YouTube Music, SoundCloud, etc.) during prayer times. It stays out of your way until it's time for prayer, ensuring you never miss a Salat while listening to media—while letting you selectively allow specific providers (e.g., VLC for Quran recitation) during Salat break slots.
 
 ---
 
@@ -13,7 +13,8 @@
 - 🌍 **Smart Location Detection**: Automatically detects when you move (e.g., traveling) by monitoring your WiFi environment and updates prayer times immediately.
 - 🕒 **Precision Geolocation**: Uses WiFi Triangulation and IP Consensus to find your exact coordinates for maximum accuracy.
 - 🕒 **Coordinate-Based Timing**: Fetches daily prayer times using exact latitude and longitude for higher precision compared to simple city names.
-- 🎵 **Universal Control**: Pauses **Spotify, Music.app, Rhythmbox, Clementine, etc.** via MPRIS (Linux) or AppleScript (macOS).
+- 🎵 **Universal Provider Control**: Automatically pauses **any standalone media player** (VLC, MPV, Spotify, Music.app, VOX, Rhythmbox, Clementine, Amberol, Strawberry, Elisa, etc.) via MPRIS (Linux) or AppleScript (macOS), plus web music providers (Spotify Web, YouTube Music, SoundCloud, Deezer, Tidal, Apple Music, Anghami).
+- 🎚️ **Per-Provider Salat Slot Toggle**: Easily toggle or allow specific providers (e.g., `salat-break --toggle-provider vlc`) so they can continue playing during Salat slots (useful for Adhan, Quran recitation, or lectures).
 - 🧠 **Smart Detection**: Recognizes browser content (YouTube, etc.) to avoid pausing tutorials while still sending notifications.
 - 🔔 **Desktop Alerts**: Sends native Linux/macOS notifications before the prayer starts.
 - 🕊️ **Zero Overhead**: Written in Go, it uses minimal system resources and runs as a background service (`systemd` or `launchd`).
@@ -69,6 +70,10 @@ Salat Break runs as a `systemd` user service, but you can also use the CLI to ma
 | `--method ID` | | Set a specific [calculation method](https://aladhan.com/calculation-methods) (e.g., 21 for Morocco). |
 | `--auto-play` | | Automatically resume media playback after the prayer break ends (default `true`). |
 | `--allow-playback` | | Allow manual media playback to continue/resume during the prayer break (default `false`). |
+| `--toggle-provider "Name"` | | Toggle allowing a specific media provider (e.g., `vlc`, `mpv`, `spotify`) to play during Salat slots. |
+| `--allow-provider "Name"` | | Allow specific media provider(s) (comma-separated, e.g., `vlc,mpv`) during Salat slots. |
+| `--disallow-provider "Name"` | | Remove provider(s) from the Salat slot allowlist so they are paused again. |
+| `--list-providers` | | List active media providers and display which ones are allowed during Salat slots. |
 | `--notification-timeout`| | Timeout for notifications in ms (0 to hide the popup). |
 | `--version` | | Display the current installed version. |
 | `update` | | **Subcommand**: Update salat-break to the latest version automatically. |
@@ -129,11 +134,12 @@ Running `salat-break --show-timings` (or `-t`) displays a beautifully formatted,
 4. **Observation Loop**: 
     - **Prayer Check**: Every 30 seconds, the app checks if it's time for prayer.
     - **Environment Monitoring**: Monitors your WiFi SSID or Public IP. If your environment changes, it automatically refreshes your location and updates prayer times.
-4. **Media Interception**: Sends a `Pause` signal to all music players. Non-music media (like videos) triggers a notification only.
-    - **Silence Enforcement (Default)**: Music playback is not allowed during the prayer window (3 minutes before to 3 minutes after the prayer time). If any music player starts playing during this time, it is automatically paused again.
-    - **Allow Playback (Lax Mode)**: By passing `--allow-playback`, you can play music during the break (the service will only attempt to pause once at the start of the break).
+4. **Media Interception**: Sends a `Pause` signal to all active media/music providers. Non-music browser tabs (like coding tutorials) trigger a notification only.
+    - **Silence Enforcement (Default)**: Media playback is paused during the prayer window (3 minutes before to 3 minutes after the prayer time). If any non-exempt media provider starts playing during this time, it is automatically paused again.
+    - **Per-Provider Exemption**: Run `salat-break --toggle-provider vlc` (or `--allow-provider vlc`) to exempt a specific provider so it is never paused during Salat break slots. Run the toggle again (or `--disallow-provider vlc`) to re-enable pausing.
+    - **Allow Playback (Lax Mode)**: By passing `--allow-playback`, you can play media during the break (the service will only attempt to pause once at the start of the break).
     - **Auto-Resume**: By default, the service will automatically resume any media it paused once the prayer window ends. You can disable this with `--auto-play=false`.
-5. **Persistence**: Manual configuration overrides are stored in `~/.cache/salat-break/location_override.json`.
+5. **Persistence**: Manual configuration overrides are stored in `~/.cache/salat-break/` (`location_override.json` and `media_config.json`).
 
 ---
 

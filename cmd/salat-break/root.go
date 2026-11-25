@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -58,12 +59,69 @@ func init() {
 	rootCmd.Flags().Bool("reset-location", false, "Clear all manual location overrides and return to automatic detection")
 	rootCmd.Flags().Bool("auto-play", true, "Automatically resume media playback after the prayer break ends")
 	rootCmd.Flags().Bool("allow-playback", false, "Allow manual media playback to continue/resume during the prayer break")
+	rootCmd.Flags().String("toggle-provider", "", "Toggle allowing a specific media provider (e.g., vlc, spotify, mpv) to play during Salat slots (sets a persistent preference)")
+	rootCmd.Flags().String("allow-provider", "", "Allow specific media provider(s) (comma-separated, e.g., vlc,mpv) to play during Salat slots (sets a persistent preference)")
+	rootCmd.Flags().String("disallow-provider", "", "Disallow specific media provider(s) from playing during Salat slots (sets a persistent preference)")
+	rootCmd.Flags().Bool("list-providers", false, "List active media providers and show which providers are allowed during Salat slots")
 
 	_ = viper.BindPFlags(rootCmd.Flags())
 	viper.SetEnvPrefix("SALAT_BREAK")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
 	rootCmd.AddCommand(updateCmd)
+}
+
+func formatAllowedProviders(list []string) string {
+	if len(list) == 0 {
+		return "none"
+	}
+	return strings.Join(list, ", ")
+}
+
+func syncMediaConfig(mediaCtrl *media.Controller, cliExtra string) {
+	cfg, _ := media.LoadConfig()
+	merged := append([]string{}, cfg.AllowedProviders...)
+	if cliExtra != "" {
+		merged = append(merged, cliExtra)
+	}
+	mediaCtrl.SetAllowedProviders(merged)
+}
+
+func printProvidersList(mediaCtrl *media.Controller) {
+	cfg, _ := media.LoadConfig()
+	mediaCtrl.SetAllowedProviders(cfg.AllowedProviders)
+
+	players := mediaCtrl.GetAllPlayers()
+	fmt.Println("Active Media Providers:")
+	if len(players) == 0 {
+		fmt.Println("  (no active media players detected)")
+	} else {
+		for _, p := range players {
+			meta := mediaCtrl.GetMetadata(p)
+			prov := media.ResolveProviderName(p, meta)
+			status := mediaCtrl.GetPlaybackStatus(p)
+			if status == "" {
+				status = "Unknown"
+			}
+			slotPolicy := "Paused during Salat"
+			if mediaCtrl.IsProviderAllowed(p, meta) {
+				slotPolicy = "Allowed during Salat"
+			} else if !mediaCtrl.IsMusic(p, meta) {
+				slotPolicy = "Ignored (non-music browser tab)"
+			}
+			trackInfo := ""
+			if title := meta["title"]; title != "" {
+				if artist := meta["artist"]; artist != "" {
+					trackInfo = fmt.Sprintf(" [%s - %s]", artist, title)
+				} else {
+					trackInfo = fmt.Sprintf(" [%s]", title)
+				}
+			}
+			fmt.Printf("  - %-16s (%s) | Status: %-8s | %s%s\n", prov, p, status, slotPolicy, trackInfo)
+		}
+	}
+	fmt.Printf("\nAllowed Providers in Salat Slot: %s\n", formatAllowedProviders(cfg.AllowedProviders))
 }
 
 func runRoot(cmd *cobra.Command, args []string) {
@@ -73,6 +131,8 @@ func runRoot(cmd *cobra.Command, args []string) {
 
 	notifier := notification.NewService(timeout, clearDelay)
 	mediaCtrl := media.NewController(notifier)
+	syncMediaConfig(mediaCtrl, viper.GetString("allow-provider"))
+
 	locationSvc := location.NewService()
 	locationSvc.Verbose = viper.GetBool("verbose")
 	prayerSvc := prayer.NewService()
@@ -83,6 +143,36 @@ func runRoot(cmd *cobra.Command, args []string) {
 	checkSvc.AutoPlay = viper.GetBool("auto-play")
 	checkSvc.AllowPlayback = viper.GetBool("allow-playback")
 
+	// Handle Provider Listing
+	if viper.GetBool("list-providers") {
+		if !viper.GetBool("verbose") {
+			log.SetOutput(io.Discard)
+		}
+		printProvidersList(mediaCtrl)
+		return
+	}
+
+	// Handle Provider Toggle (CLI persistent toggle)
+	if toggleProv := strings.TrimSpace(viper.GetString("toggle-provider")); toggleProv != "" {
+		norm := media.NormalizeProviderName(toggleProv)
+		if norm == "" {
+			fmt.Fprintf(os.Stderr, "Error: invalid provider name %q\n", toggleProv)
+			os.Exit(1)
+		}
+		allowed, updated, err := media.ToggleProvider(norm)
+		if err != nil {
+			log.Fatalf("Error saving media provider configuration: %v", err)
+		}
+		if allowed {
+			fmt.Printf("Provider %q is now ALLOWED to play during Salat break slots.\n", norm)
+		} else {
+			fmt.Printf("Provider %q is now DISALLOWED (will be paused) during Salat break slots.\n", norm)
+		}
+		fmt.Printf("Allowed providers: %s\n", formatAllowedProviders(updated))
+		restartService()
+		return
+	}
+
 	// Handle Tests
 	if viper.GetBool("test-pause") {
 		log.Println("Test: Pausing all media players...")
@@ -91,15 +181,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	}
 	if viper.GetBool("test-play") {
 		log.Println("Test: Resuming all media players...")
-		// For the test flag, if no players are tracked, try to resume all active MPRIS players
-		if len(mediaCtrl.GetAllPlayers()) > 0 {
-			players := mediaCtrl.GetAllPlayers()
-			for _, p := range players {
-				log.Printf("Test: Resuming player %s", p)
-				cmd := exec.Command("dbus-send", "--print-reply", "--dest="+p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
-				_ = cmd.Run()
-			}
-		}
+		mediaCtrl.ForcePlayAllPlayers()
 		return
 	}
 	if viper.GetBool("test-notify") {
@@ -112,6 +194,32 @@ func runRoot(cmd *cobra.Command, args []string) {
 		runSimulation(checkSvc)
 		return
 	}
+
+	// Handle Explicit Allow / Disallow Provider Configuration
+	allowProv := strings.TrimSpace(viper.GetString("allow-provider"))
+	disallowProv := strings.TrimSpace(viper.GetString("disallow-provider"))
+	if allowProv != "" || disallowProv != "" {
+		var updated []string
+		var err error
+		if allowProv != "" {
+			updated, err = media.AllowProviders(allowProv)
+			if err != nil {
+				log.Fatalf("Error saving allowed providers: %v", err)
+			}
+			fmt.Printf("Added allowed provider(s) for Salat break slots: %s\n", strings.Join(media.SplitProviderInput(allowProv), ", "))
+		}
+		if disallowProv != "" {
+			updated, err = media.DisallowProviders(disallowProv)
+			if err != nil {
+				log.Fatalf("Error saving disallowed providers: %v", err)
+			}
+			fmt.Printf("Removed provider(s) from Salat break allowlist: %s\n", strings.Join(media.SplitProviderInput(disallowProv), ", "))
+		}
+		fmt.Printf("Allowed providers: %s\n", formatAllowedProviders(updated))
+		restartService()
+		return
+	}
+
 	if viper.GetBool("show-location") {
 		if !viper.GetBool("verbose") {
 			log.SetOutput(io.Discard)
@@ -230,6 +338,8 @@ func runRoot(cmd *cobra.Command, args []string) {
 			continue
 		}
 
+		// Reload media provider allowlist dynamically on each check
+		syncMediaConfig(mediaCtrl, "")
 		checkSvc.CheckAndPause(timings.Data.Timings)
 		time.Sleep(30 * time.Second)
 	}
@@ -250,7 +360,7 @@ func runSimulation(checkSvc *checker.Service) {
 func runUpdate(cmd *cobra.Command, args []string) {
 	log.Println("Checking for updates...")
 	installerURL := "https://raw.githubusercontent.com/Oussama-El-Amrani/salat-break/main/install.sh"
-	
+
 	// Create the command: curl -sSL <url> | bash
 	c1 := exec.Command("curl", "-sSL", installerURL)
 	c2 := exec.Command("bash")
@@ -280,6 +390,6 @@ func runUpdate(cmd *cobra.Command, args []string) {
 	if err := c2.Wait(); err != nil {
 		log.Fatalf("Error during update: %v", err)
 	}
-	
+
 	log.Println("Update process completed.")
 }
