@@ -13,6 +13,13 @@ type MediaManager interface {
 	EnforceSilence()
 }
 
+// RealtimeSilencer is an optional interface implemented by platform media controllers
+// capable of event-driven real-time playback interception during prayer breaks.
+type RealtimeSilencer interface {
+	StartRealtimeSilence()
+	StopRealtimeSilence()
+}
+
 type Notifier interface {
 	SendNotification(title, message string)
 }
@@ -30,9 +37,14 @@ func NewService(mediaCtrl MediaManager, notifier Notifier) *Service {
 	return &Service{
 		mediaCtrl:     mediaCtrl,
 		notifier:      notifier,
-		AutoPlay:      true, // Default to true
+		AutoPlay:      true,  // Default to true
 		AllowPlayback: false, // Default to false
 	}
+}
+
+// IsInPrayerBreak reports whether the checker is currently inside an active Salat break window.
+func (s *Service) IsInPrayerBreak() bool {
+	return s.inPrayerBreak
 }
 
 func (s *Service) CheckAndPause(timings map[string]string, nowOverride ...time.Time) {
@@ -91,8 +103,20 @@ func (s *Service) CheckAndPause(timings map[string]string, nowOverride ...time.T
 			s.notifier.SendNotification("Salat Break", msg)
 
 			s.mediaCtrl.PauseAllPlayers()
+			if !s.AllowPlayback {
+				if rt, ok := s.mediaCtrl.(RealtimeSilencer); ok {
+					rt.StartRealtimeSilence()
+				}
+			}
 		} else if !s.AllowPlayback {
+			if rt, ok := s.mediaCtrl.(RealtimeSilencer); ok {
+				rt.StartRealtimeSilence()
+			}
 			s.mediaCtrl.EnforceSilence()
+		} else {
+			if rt, ok := s.mediaCtrl.(RealtimeSilencer); ok {
+				rt.StopRealtimeSilence()
+			}
 		}
 	} else {
 		if s.inPrayerBreak {
@@ -100,6 +124,11 @@ func (s *Service) CheckAndPause(timings map[string]string, nowOverride ...time.T
 			log.Printf("Prayer window for %s ended at %s.", s.lastHandledPrayer, now.Format("15:04:05"))
 			s.inPrayerBreak = false
 			s.lastHandledPrayer = ""
+
+			// Stop real-time watcher BEFORE resuming paused players so resumed audio isn't re-paused
+			if rt, ok := s.mediaCtrl.(RealtimeSilencer); ok {
+				rt.StopRealtimeSilence()
+			}
 
 			if s.AutoPlay {
 				log.Println("Resuming music...")

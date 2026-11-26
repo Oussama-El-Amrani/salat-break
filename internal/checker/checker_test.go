@@ -23,6 +23,18 @@ func (m *MockMediaManager) EnforceSilence() {
 	m.Called()
 }
 
+type MockRealtimeMediaManager struct {
+	MockMediaManager
+}
+
+func (m *MockRealtimeMediaManager) StartRealtimeSilence() {
+	m.Called()
+}
+
+func (m *MockRealtimeMediaManager) StopRealtimeSilence() {
+	m.Called()
+}
+
 type MockNotifier struct {
 	mock.Mock
 }
@@ -157,5 +169,28 @@ func TestCheckAndPause(t *testing.T) {
 
 		mockNotify.AssertExpectations(t)
 		mockMedia.AssertNotCalled(t, "PlayAllPlayers")
+	})
+
+	t.Run("Realtime silencer starts on entry and stops before resume on exit", func(t *testing.T) {
+		mockMedia := new(MockRealtimeMediaManager)
+		mockNotify := new(MockNotifier)
+		s := NewService(mockMedia, mockNotify)
+
+		enterTime := time.Date(2026, 3, 31, 11, 58, 0, 0, time.Local)
+		mockNotify.On("SendNotification", "Salat Break", "It is time for Dhuhr (12:00).").Once()
+		mockMedia.On("PauseAllPlayers").Once()
+		mockMedia.On("StartRealtimeSilence").Once()
+
+		s.CheckAndPause(timings, enterTime)
+		mockMedia.AssertExpectations(t)
+
+		exitTime := time.Date(2026, 3, 31, 12, 4, 0, 0, time.Local)
+		mockMedia.On("StopRealtimeSilence").Once()
+		mockMedia.On("PlayAllPlayers").Once()
+		mockNotify.On("SendNotification", "Salat Break Ended", "The prayer window has ended. Media playback resumed.").Once()
+
+		s.CheckAndPause(timings, exitTime)
+		mockMedia.AssertExpectations(t)
+		mockNotify.AssertExpectations(t)
 	})
 }

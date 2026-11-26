@@ -338,10 +338,12 @@ func runRoot(cmd *cobra.Command, args []string) {
 			continue
 		}
 
-		// Reload media provider allowlist dynamically on each check
-		syncMediaConfig(mediaCtrl, "")
-		checkSvc.CheckAndPause(timings.Data.Timings)
-		time.Sleep(30 * time.Second)
+		// Check prayer window and enforce silence every 1s for 30s before the next location/timings refresh.
+		for tick := 0; tick < 30; tick++ {
+			syncMediaConfig(mediaCtrl, "")
+			checkSvc.CheckAndPause(timings.Data.Timings)
+			time.Sleep(1 * time.Second)
+		}
 	}
 }
 

@@ -3,10 +3,13 @@
 package media
 
 import (
+	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 func (c *Controller) GetAllPlayers() []string {
@@ -112,6 +115,88 @@ func (c *Controller) GetPlaybackStatus(player string) string {
 	return ""
 }
 
+// StartRealtimeSilence launches a background DBus signal watcher (dbus-monitor)
+// that immediately pauses any non-allowed MPRIS media player the moment it starts
+// or resumes playing during an active Salat slot.
+func (c *Controller) StartRealtimeSilence() {
+	c.mu.Lock()
+	if c.silenceCancel != nil {
+		c.mu.Unlock()
+		return
+	}
+	if _, err := exec.LookPath("dbus-monitor"); err != nil {
+		c.mu.Unlock()
+		return
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	c.silenceCancel = cancel
+	c.mu.Unlock()
+
+	triggerCh := make(chan struct{}, 1)
+
+	// Worker goroutine: coalesces bursts of DBus signals and enforces silence immediately
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-triggerCh:
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(50 * time.Millisecond):
+				}
+				if ctx.Err() == nil {
+					c.EnforceSilence()
+				}
+			}
+		}
+	}()
+
+	// Signal monitor goroutine
+	go func() {
+		cmd := exec.CommandContext(
+			ctx,
+			"dbus-monitor",
+			"--session",
+			"type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='/org/mpris/MediaPlayer2'",
+			"type='signal',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0namespace='org.mpris.MediaPlayer2'",
+		)
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return
+		}
+		if err := cmd.Start(); err != nil {
+			return
+		}
+
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, "\"Playing\"") || strings.Contains(line, "org.mpris.MediaPlayer2.") {
+				select {
+				case triggerCh <- struct{}{}:
+				default:
+				}
+			}
+		}
+		_ = cmd.Wait()
+	}()
+}
+
+// StopRealtimeSilence terminates the background DBus signal watcher when a Salat slot ends.
+func (c *Controller) StopRealtimeSilence() {
+	c.mu.Lock()
+	cancel := c.silenceCancel
+	c.silenceCancel = nil
+	c.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+}
+
 func (c *Controller) PauseAllPlayers() {
 	c.pauseAllPlayers(false)
 }
@@ -121,6 +206,9 @@ func (c *Controller) EnforceSilence() {
 }
 
 func (c *Controller) pauseAllPlayers(accumulate bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if !accumulate {
 		c.playersToResume = []string{}
 	}
@@ -131,20 +219,28 @@ func (c *Controller) pauseAllPlayers(accumulate bool) {
 
 	var pausedTitles []string
 	for _, player := range players {
+		// Fast path during active silence enforcement: check PlaybackStatus first to avoid
+		// unnecessary metadata queries or repetitive log lines for already-paused players.
+		status := c.GetPlaybackStatus(player)
+		if accumulate && status != "Playing" {
+			continue
+		}
+
 		meta := c.GetMetadata(player)
 		title := meta["title"]
 		artist := meta["artist"]
 
 		if c.IsProviderAllowed(player, meta) {
-			log.Printf("Provider %s (%s) is allowed during Salat slot. Skipping pause.", ResolveProviderName(player, meta), player)
+			if !accumulate {
+				log.Printf("Provider %s (%s) is allowed during Salat slot. Skipping pause.", ResolveProviderName(player, meta), player)
+			}
 			continue
 		}
 
 		if c.IsMusic(player, meta) {
-			status := c.GetPlaybackStatus(player)
 			if status == "Playing" {
 				log.Printf("Pausing media provider %s: %s - %s", player, artist, title)
-				cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
+				cmd := exec.Command("dbus-send", "--session", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Pause")
 				_ = cmd.Run()
 
 				if title != "" {
@@ -164,10 +260,10 @@ func (c *Controller) pauseAllPlayers(accumulate bool) {
 				if !found {
 					c.playersToResume = append(c.playersToResume, player)
 				}
-			} else {
+			} else if !accumulate {
 				log.Printf("Media provider %s is not playing (status: %s). Ignored.", player, status)
 			}
-		} else if title != "" {
+		} else if !accumulate && title != "" {
 			log.Printf("Non-music browser media detected on %s: %s. Not pausing.", player, title)
 		}
 	}
@@ -186,12 +282,15 @@ func (c *Controller) pauseAllPlayers(accumulate bool) {
 }
 
 func (c *Controller) PlayAllPlayers() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if len(c.playersToResume) == 0 {
 		return
 	}
 	for _, player := range c.playersToResume {
 		log.Printf("Resuming %s...", player)
-		cmd := exec.Command("dbus-send", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
+		cmd := exec.Command("dbus-send", "--session", "--print-reply", "--dest="+player, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
 		_ = cmd.Run()
 	}
 	c.playersToResume = []string{}
@@ -201,7 +300,7 @@ func (c *Controller) ForcePlayAllPlayers() {
 	players := c.GetAllPlayers()
 	for _, p := range players {
 		log.Printf("Test: Resuming player %s", p)
-		cmd := exec.Command("dbus-send", "--print-reply", "--dest="+p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
+		cmd := exec.Command("dbus-send", "--session", "--print-reply", "--dest="+p, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player.Play")
 		_ = cmd.Run()
 	}
 }

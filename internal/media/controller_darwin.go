@@ -357,6 +357,12 @@ func playMacOSPlayer(c *Controller, player string) {
 	_ = exec.Command("osascript", "-e", script).Run()
 }
 
+func (c *Controller) StartRealtimeSilence() {
+	// On macOS, silence enforcement is driven by the 1-second active break polling loop.
+}
+
+func (c *Controller) StopRealtimeSilence() {}
+
 func (c *Controller) PauseAllPlayers() {
 	c.pauseAllPlayers(false)
 }
@@ -366,6 +372,9 @@ func (c *Controller) EnforceSilence() {
 }
 
 func (c *Controller) pauseAllPlayers(accumulate bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if !accumulate {
 		c.playersToResume = []string{}
 	}
@@ -373,14 +382,16 @@ func (c *Controller) pauseAllPlayers(accumulate bool) {
 
 	var pausedTitles []string
 	for _, player := range players {
-		meta := c.GetMetadata(player)
-		if c.IsProviderAllowed(player, meta) {
-			log.Printf("Provider %s (%s) is allowed during Salat slot. Skipping pause.", ResolveProviderName(player, meta), player)
-			continue
-		}
-
 		status := c.GetPlaybackStatus(player)
 		if status == "Playing" {
+			meta := c.GetMetadata(player)
+			if c.IsProviderAllowed(player, meta) {
+				if !accumulate {
+					log.Printf("Provider %s (%s) is allowed during Salat slot. Skipping pause.", ResolveProviderName(player, meta), player)
+				}
+				continue
+			}
+
 			title := meta["title"]
 			artist := meta["artist"]
 
@@ -423,6 +434,9 @@ func (c *Controller) pauseAllPlayers(accumulate bool) {
 }
 
 func (c *Controller) PlayAllPlayers() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if len(c.playersToResume) == 0 {
 		return
 	}

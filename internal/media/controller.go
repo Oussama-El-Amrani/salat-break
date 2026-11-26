@@ -1,7 +1,9 @@
 package media
 
 import (
+	"context"
 	"strings"
+	"sync"
 )
 
 type Notifier interface {
@@ -9,9 +11,12 @@ type Notifier interface {
 }
 
 type Controller struct {
+	mu               sync.Mutex
+	cfgMu            sync.RWMutex
 	notifier         Notifier
 	playersToResume  []string
 	allowedProviders []string
+	silenceCancel    context.CancelFunc
 }
 
 func NewController(notifier Notifier) *Controller {
@@ -31,11 +36,15 @@ func (c *Controller) SetAllowedProviders(providers []string) {
 			}
 		}
 	}
+	c.cfgMu.Lock()
 	c.allowedProviders = normalized
+	c.cfgMu.Unlock()
 }
 
 // GetAllowedProviders returns a copy of currently configured allowed providers.
 func (c *Controller) GetAllowedProviders() []string {
+	c.cfgMu.RLock()
+	defer c.cfgMu.RUnlock()
 	out := make([]string, len(c.allowedProviders))
 	copy(out, c.allowedProviders)
 	return out
@@ -132,7 +141,8 @@ func isBrowserPlayer(player string) bool {
 // IsProviderAllowed returns true if the given player or its resolved music provider
 // has been toggled/allowed to continue playing during Salat break slots.
 func (c *Controller) IsProviderAllowed(player string, metadata map[string]string) bool {
-	if len(c.allowedProviders) == 0 {
+	allowedList := c.GetAllowedProviders()
+	if len(allowedList) == 0 {
 		return false
 	}
 
@@ -166,7 +176,7 @@ func (c *Controller) IsProviderAllowed(player string, metadata map[string]string
 		}
 	}
 
-	for _, allowed := range c.allowedProviders {
+	for _, allowed := range allowedList {
 		if containsString(candidates, allowed) {
 			return true
 		}
